@@ -41,9 +41,6 @@ def _render_system_png(ws: Workspace, meta: ScoreMeta, numbers: list[int]) -> Im
 
 def run_selfcheck(ws: Workspace, interpreter: Interpreter, *, max_rounds: int = 2) -> list[Discrepancy]:
     meta = ScoreMeta.model_validate_json(ws.score_meta_path.read_text())
-    # Reset interpreter's reinterpreted tracking to record only selfcheck re-runs
-    if hasattr(interpreter, 'reinterpreted'):
-        interpreter.reinterpreted = []
     remaining: list[Discrepancy] = []
     for _ in range(max_rounds):
         state = ws.load_state()

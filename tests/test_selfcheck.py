@@ -51,6 +51,8 @@ def test_clean_selfcheck_terminates(tmp_path, synthetic_page):
     clean = DiscrepancyReport(discrepancies=[])
     stub = StubInterpreter(reports=[clean, clean, clean, clean])  # 4 systems
     ws = _pipeline_ws(tmp_path, synthetic_page, stub)
+    # pipeline setup populates this; we assert only on selfcheck-triggered re-runs
+    stub.reinterpreted.clear()
     remaining = run_selfcheck(ws, stub)
     assert remaining == [] and stub.reinterpreted == []
 
@@ -62,6 +64,8 @@ def test_discrepancy_triggers_rerun_then_resolves(tmp_path, synthetic_page):
     # round 1: system 1 dirty, others clean; round 2: all clean
     stub = StubInterpreter(reports=[bad, clean, clean, clean, clean, clean, clean, clean])
     ws = _pipeline_ws(tmp_path, synthetic_page, stub)
+    # pipeline setup populates this; we assert only on selfcheck-triggered re-runs
+    stub.reinterpreted.clear()
     remaining = run_selfcheck(ws, stub, max_rounds=2)
     assert remaining == []
     assert 2 in stub.reinterpreted
