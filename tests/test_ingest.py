@@ -12,10 +12,11 @@ def test_ingest_images_in_order(tmp_path):
     a, b = tmp_path / "b-page2.png", tmp_path / "a-page1.png"
     _make_png(a), _make_png(b)
     ws = Workspace.create(tmp_path / "jobs")
-    run_ingest(ws, [b, a])  # explicit order wins, not filename sort
+    run_ingest(ws, [a, b])  # explicit order wins, not filename sort
     state = ws.load_state()
     assert [p.page for p in state.pages] == ["p01", "p02"]
-    assert state.pages[0].source_name == "a-page1.png"
+    assert state.pages[0].source_name == "b-page2.png"
+    assert state.pages[1].source_name == "a-page1.png"
     assert ws.source_path("p01").exists() and ws.source_path("p02").exists()
     assert state.status == "ingested"
 
