@@ -83,10 +83,11 @@ class Interpreter:
             if response.stop_reason != "tool_use":
                 break
             tool_uses = [b for b in response.content if b.type == "tool_use"]
-            messages.append({"role": "assistant", "content": [
-                {"type": "tool_use", "id": b.id, "name": b.name, "input": b.input}
-                for b in tool_uses
-            ]})
+            # Echo back the full response content (not just the tool_use blocks):
+            # with thinking={"type": "adaptive"}, a tool-use turn starts with a
+            # thinking block that the API requires to be replayed unchanged when
+            # continuing the conversation. Dropping it causes a 400.
+            messages.append({"role": "assistant", "content": response.content})
             results = []
             for block in tool_uses:
                 if tool_calls_used < self.max_tool_calls:

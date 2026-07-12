@@ -34,6 +34,22 @@ def _tool_response(name="grid_overlay", tool_input=None):
     )
 
 
+def _thinking_block(text="let me look closer at this measure..."):
+    return SimpleNamespace(type="thinking", thinking=text, signature="sig_1")
+
+
+def _tool_response_with_thinking(name="grid_overlay", tool_input=None):
+    return SimpleNamespace(
+        stop_reason="tool_use",
+        content=[
+            _thinking_block(),
+            SimpleNamespace(type="tool_use", id="tu_1", name=name,
+                            input=tool_input or {}),
+        ],
+        usage=SimpleNamespace(input_tokens=100, output_tokens=20),
+    )
+
+
 class FakeClient:
     def __init__(self, responses):
         self._responses = list(responses)
@@ -68,6 +84,25 @@ def test_tool_then_answer():
     # second call carries the tool result back
     last_msg = client.calls[1]["messages"][-1]
     assert last_msg["content"][0]["type"] == "tool_result"
+
+
+def test_tool_loop_echoes_full_assistant_content_including_thinking():
+    """Regression test: the assistant turn re-sent into the next request must be
+    the model's full response content (thinking block included), not a
+    reconstruction that keeps only the tool_use blocks. With
+    thinking={"type": "adaptive"}, the API requires thinking blocks to be
+    echoed back unchanged on the next turn — dropping them causes a 400.
+    """
+    first_response = _tool_response_with_thinking()
+    client = FakeClient([first_response, _text_response(VALID_IR)])
+    ir, _ = Interpreter(client).interpret_measure(_ctx())
+    assert isinstance(ir, MeasureIR)
+
+    second_call_messages = client.calls[1]["messages"]
+    assistant_turns = [m for m in second_call_messages if m["role"] == "assistant"]
+    assert len(assistant_turns) == 1
+    assert assistant_turns[0]["content"] == first_response.content
+    assert assistant_turns[0]["content"][0].type == "thinking"
 
 
 def test_cap_forces_final_answer():
