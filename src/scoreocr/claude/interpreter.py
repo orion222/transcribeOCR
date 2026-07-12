@@ -120,3 +120,28 @@ class Interpreter:
         )
         meta = ScoreMeta.model_validate(json.loads(self._final_text(response)))
         return meta, self._usage_of([response])
+
+    def compare_images(self, source: Image.Image, rendered: Image.Image,
+                       measure_numbers: list[int]) -> tuple["DiscrepancyReport", dict]:
+        from scoreocr.stages.selfcheck import DiscrepancyReport
+
+        kwargs = self._base_kwargs(to_output_schema(DiscrepancyReport))
+        kwargs.pop("tools")
+        response = self.client.messages.create(
+            messages=[{"role": "user", "content": [
+                image_to_content_block(source),
+                image_to_content_block(rendered),
+                {"type": "text", "text": (
+                    "First image: the ORIGINAL sheet music system. Second image: a "
+                    "RENDERING of our transcription of the same measures "
+                    f"({measure_numbers}). Compare measure by measure — pitches, "
+                    "rhythms, accidentals, rests, ties, octaves, chord contents, "
+                    "dynamics. Report every substantive mismatch (ignore font, "
+                    "spacing, beam angles). Empty list if they match."
+                )},
+            ]}],
+            **kwargs,
+        )
+        report = DiscrepancyReport.model_validate(
+            json.loads(self._final_text(response)))
+        return report, self._usage_of([response])
