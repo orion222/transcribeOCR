@@ -1,3 +1,7 @@
+import json
+
+from PIL import Image
+
 import scoreocr.cli as cli
 from scoreocr.claude.interpreter import Interpreter
 from scoreocr.models import Event, MeasureIR, Pitch, ScoreMeta
@@ -32,3 +36,20 @@ def test_end_to_end(tmp_path, synthetic_page, monkeypatch, capsys):
     assert score.exists()
     previews = list((jobs[0] / "output" / "preview").glob("*.svg"))
     assert previews
+
+
+def test_stage_failure_marks_job_failed(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "build_interpreter", lambda: StubInterpreter())
+    blank = tmp_path / "blank.png"
+    Image.new("L", (400, 300), color=255).save(blank)  # no staff lines at all
+
+    code = cli.main([
+        "run", str(blank), "--jobs-root", str(tmp_path / "jobs"),
+    ])
+    assert code == 1
+
+    jobs = list((tmp_path / "jobs").iterdir())
+    assert len(jobs) == 1
+    state = json.loads((jobs[0] / "job.json").read_text())
+    assert state["status"] == "failed:geometry"
+    assert state["error"]
