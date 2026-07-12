@@ -58,7 +58,8 @@ class Workspace:
 
     def page_ir_paths(self, page: str) -> list[Path]:
         d = self.page_dir(page) / "transcription"
-        return sorted(d.glob("m*.json")) if d.exists() else []
+        # Exclude mNNN.error.json sidecar files written for failed measures.
+        return sorted(d.glob("m[0-9][0-9][0-9].json")) if d.exists() else []
 
     @property
     def score_meta_path(self) -> Path:

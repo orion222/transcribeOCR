@@ -27,6 +27,9 @@ def run_assemble(ws: Workspace) -> None:
             new_system.add(system.measure_numbers[0])
         all_measures.extend(page_measures)
 
+    if not all_measures:
+        raise ValueError("no measure IR files found — did interpret succeed?")
+
     first = all_measures[0].number
     new_page.discard(first)
     (ws.output_dir / "score.musicxml").write_bytes(

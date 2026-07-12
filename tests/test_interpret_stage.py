@@ -1,9 +1,11 @@
 from scoreocr.claude.interpreter import Interpreter
 from scoreocr.models import Event, MeasureIR, Pitch, ScoreMeta
+from scoreocr.stages.assemble import run_assemble
 from scoreocr.stages.crop import run_crop
 from scoreocr.stages.geometry import run_geometry
 from scoreocr.stages.ingest import run_ingest
 from scoreocr.stages.interpret import run_interpret
+from scoreocr.stages.validate import validate_musicxml
 from scoreocr.workspace import Workspace
 
 
@@ -79,3 +81,36 @@ def test_only_measures_rerun(tmp_path, synthetic_page):
     run_interpret(ws, stub2, only_measures={5},
                   feedback={5: "beat 3 should be an Eb"})
     assert stub2.feedback_seen == {5: "beat 3 should be an Eb"}
+
+
+def test_measure_failure_writes_error_and_job_continues(tmp_path, synthetic_page):
+    ws = _ws(tmp_path, synthetic_page)
+
+    def factory(ctx):
+        if ctx.number == 3:
+            raise RuntimeError("simulated interpreter failure")
+        return _good_ir(ctx.number)
+
+    stub = StubInterpreter(factory)
+    run_interpret(ws, stub)
+
+    state = ws.load_state()
+    assert state.status == "interpreted"  # the job did not die on one bad measure
+
+    err_path = ws.measure_ir_path(3).with_suffix(".error.json")
+    assert err_path.exists()
+    assert not ws.measure_ir_path(3).exists()
+    for n in [1, 2, 4, 5, 6, 7, 8]:
+        assert ws.measure_ir_path(n).exists()
+
+    # assemble must not choke on the missing measure (nor on the error sidecar
+    # file, which used to collide with the "m*.json" IR glob)
+    run_assemble(ws)
+    assert ws.load_state().status == "assembled"
+
+    meta = ScoreMeta.model_validate_json(ws.score_meta_path.read_text())
+    issues = validate_musicxml(
+        (ws.output_dir / "score.musicxml").read_bytes(), meta, list(range(1, 9)),
+    )
+    codes = {issue.code for issue in issues}
+    assert "measure-count" in codes or "numbering" in codes
