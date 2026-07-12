@@ -34,6 +34,9 @@ def _contexts_for_page(ws: Workspace, page: str, meta: ScoreMeta) -> dict[int, M
                 (system.barline_xs[mi] - x0) + int(width * b / meta.time_beats)
                 for b in range(meta.time_beats)
             ]
+            # Phase 1 descope: previous-measure IR continuity (spec:
+            # accidental/voice continuity input) is not populated under
+            # concurrent interpretation; revisit in Phase 2.
             contexts[number] = MeasureContext(
                 number=number, crop=crop, system_crop=system_crop, meta=meta,
                 previous=None, staff_line_ys=line_ys, beat_xs=beat_xs,
