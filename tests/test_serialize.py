@@ -82,4 +82,11 @@ def test_grace_note_has_no_duration():
 def test_music21_roundtrip():
     xml = to_musicxml(_meta(), [_simple_measure()])
     score = music21.converter.parseData(xml.decode())
-    assert len(score.parts) == 1
+    # music21 10.5 imports a <staves>2</staves> part as 2 PartStaff objects
+    # (grouped by a StaffGroup) rather than a single Part with 2 staves.
+    parts = list(score.parts)
+    assert len(parts) == 2
+    assert all(isinstance(p, music21.stream.PartStaff) for p in parts)
+    staff_groups = list(score.recurse().getElementsByClass(music21.layout.StaffGroup))
+    assert len(staff_groups) == 1
+    assert list(staff_groups[0].getSpannedElements()) == parts
