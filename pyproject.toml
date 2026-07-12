@@ -10,7 +10,7 @@ dependencies = [
     "pypdfium2>=4",
     "lxml>=5",
     "verovio>=4",
-    "anthropic",
+    "anthropic>=0.116",
     "cairosvg>=2.7",
 ]
 
