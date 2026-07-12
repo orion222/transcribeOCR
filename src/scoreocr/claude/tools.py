@@ -5,8 +5,15 @@ from PIL import Image, ImageDraw
 
 
 def zoom(img: Image.Image, x0: int, y0: int, x1: int, y1: int, scale: int = 4) -> Image.Image:
-    x0, y0 = max(0, x0), max(0, y0)
-    x1, y1 = min(img.width, x1), min(img.height, y1)
+    # Order the coordinates so x0<=x1 and y0<=y1 (LLM-generated boxes may be reversed).
+    x0, x1 = min(x0, x1), max(x0, x1)
+    y0, y1 = min(y0, y1), max(y0, y1)
+    # Clamp into image bounds while guaranteeing a non-empty (>=1x1) crop box, even
+    # for degenerate or fully-out-of-range input.
+    x0 = max(0, min(x0, img.width - 1))
+    x1 = max(x0 + 1, min(x1, img.width))
+    y0 = max(0, min(y0, img.height - 1))
+    y1 = max(y0 + 1, min(y1, img.height))
     region = img.crop((x0, y0, x1, y1))
     return region.resize((region.width * scale, region.height * scale), Image.LANCZOS)
 
