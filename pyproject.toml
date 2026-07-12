@@ -13,6 +13,7 @@ dependencies = [
     "verovio>=4",
     "anthropic>=0.116",
     "cairosvg>=2.7",
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
