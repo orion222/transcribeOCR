@@ -1,0 +1,63 @@
+import base64
+import io
+
+from PIL import Image, ImageDraw
+
+
+def zoom(img: Image.Image, x0: int, y0: int, x1: int, y1: int, scale: int = 4) -> Image.Image:
+    x0, y0 = max(0, x0), max(0, y0)
+    x1, y1 = min(img.width, x1), min(img.height, y1)
+    region = img.crop((x0, y0, x1, y1))
+    return region.resize((region.width * scale, region.height * scale), Image.LANCZOS)
+
+
+def grid_overlay(img: Image.Image, line_ys: list[int], beat_xs: list[int]) -> Image.Image:
+    out = img.convert("RGB")
+    draw = ImageDraw.Draw(out)
+    for y in line_ys:
+        draw.line([(0, y), (out.width, y)], fill=(255, 0, 0), width=1)
+    for x in beat_xs:
+        draw.line([(x, 0), (x, out.height)], fill=(0, 0, 255), width=1)
+    return out
+
+
+TOOL_DEFINITIONS = [
+    {
+        "name": "zoom",
+        "description": (
+            "Enlarge a region of the measure crop 4x for closer inspection. "
+            "Coordinates are pixels in the measure crop you were shown. Use this "
+            "when an accidental, dot, ledger line, or notehead position is ambiguous."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "x0": {"type": "integer"}, "y0": {"type": "integer"},
+                "x1": {"type": "integer"}, "y1": {"type": "integer"},
+            },
+            "required": ["x0", "y0", "x1", "y1"],
+        },
+    },
+    {
+        "name": "grid_overlay",
+        "description": (
+            "Return the measure crop with red horizontal guides on every staff line "
+            "and blue vertical beat guides. Use this to resolve exact notehead "
+            "positions relative to staff lines and spaces."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+]
+
+
+def image_to_content_block(img: Image.Image) -> dict:
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return {
+        "type": "image",
+        "source": {
+            "type": "base64",
+            "media_type": "image/png",
+            "data": base64.standard_b64encode(buf.getvalue()).decode(),
+        },
+    }
