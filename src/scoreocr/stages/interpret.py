@@ -16,8 +16,15 @@ def _contexts_for_page(ws: Workspace, page: str, meta: ScoreMeta) -> dict[int, M
     contexts = {}
     for si, system in enumerate(geo.systems):
         system_crop = Image.open(paths["systems"][si])
+        # Force eager decode: this Image is shared across every MeasureContext in the
+        # system and consumed concurrently by ThreadPoolExecutor workers, and PIL's
+        # lazy first-decode is not thread-safe.
+        system_crop.load()
         for mi, number in enumerate(system.measure_numbers):
             crop = Image.open(paths["measures"][number])
+            # Force eager decode: consumed concurrently by ThreadPoolExecutor workers,
+            # and PIL's lazy first-decode is not thread-safe.
+            crop.load()
             x0, y0, _, _ = measure_crop_box(system, mi)
             line_ys = [
                 y - y0 for staff in system.staves for y in staff.line_ys
