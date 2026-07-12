@@ -1,7 +1,6 @@
 import io
 from typing import Literal
 
-import cairosvg
 from PIL import Image
 from pydantic import BaseModel
 
@@ -26,6 +25,9 @@ class DiscrepancyReport(BaseModel):
 
 
 def _render_system_png(ws: Workspace, meta: ScoreMeta, numbers: list[int]) -> Image.Image:
+    # Native cairo dlopen deferred so the CLI works without cairo present.
+    import cairosvg
+
     measures = [
         MeasureIR.model_validate_json(ws.measure_ir_path(n).read_text())
         for n in numbers
