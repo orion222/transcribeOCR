@@ -1,0 +1,27 @@
+[project]
+name = "scoreocr"
+version = "0.1.0"
+description = "Piano sheet music to MusicXML transcription pipeline"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "opencv-python-headless>=4.9",
+    "pillow>=10",
+    "pypdfium2>=4",
+    "lxml>=5",
+    "verovio>=4",
+    "anthropic",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "music21>=9"]
+
+[project.scripts]
+score-transcribe = "scoreocr.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
