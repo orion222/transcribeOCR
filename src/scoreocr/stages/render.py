@@ -8,7 +8,7 @@ from scoreocr.workspace import Workspace
 def render_file(xml_path: Path, out_dir: Path, stem: str) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     tk = verovio.toolkit()
-    tk.setOptions({"svgViewBox": True, "adjustPageHeight": True})
+    tk.setOptions({"svgViewBox": True, "adjustPageHeight": True, "breaks": "encoded"})
     if not tk.loadData(xml_path.read_text()):
         raise RuntimeError(f"verovio failed to load {xml_path}")
     outputs = []

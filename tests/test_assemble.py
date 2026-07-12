@@ -69,3 +69,14 @@ def test_page_files_standalone(tmp_path):
     assert [m.get("number") for m in measures] == ["5", "6", "7", "8"]
     # standalone page re-states attributes on ITS first measure
     assert measures[0].find("attributes") is not None
+
+
+def test_page_file_marks_its_own_system_breaks(tmp_path):
+    ws = _build_two_page_ws(tmp_path)
+    run_assemble(ws)
+    p1 = etree.parse(str(ws.page_output_dir("p01") / "page.musicxml"))
+    # p01's second system starts at measure 3; within the standalone page
+    # file this is a system break (not a page break, since it's not the
+    # page's own first measure)
+    m3 = p1.find(".//measure[@number='3']")
+    assert m3.find("print").get("new-system") == "yes"
