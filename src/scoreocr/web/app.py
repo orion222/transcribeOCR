@@ -74,6 +74,8 @@ def create_app(jobs_root: Path, build_interpreter=_default_build_interpreter) ->
         async def gen():
             try:
                 yield f"event: snapshot\ndata: {manifest.model_dump_json()}\n\n"
+                if manifest.status == "complete":
+                    return
                 while True:
                     if await request.is_disconnected():
                         break

@@ -68,3 +68,23 @@ def test_events_stream_reports_completion(tmp_path):
     body = "\n".join(lines)
     assert "snapshot" in body
     assert "complete" in body
+
+
+def test_events_stream_ends_for_already_complete_batch(tmp_path):
+    from tests.conftest import draw_page
+    client = _client(tmp_path)
+    bid = client.post("/api/batches", json={}).json()["batch_id"]
+    data = _png_bytes(draw_page)
+    client.post(f"/api/batches/{bid}/photos",
+                files=[("files", ("p1.png", data, "image/png"))])
+    client.post(f"/api/batches/{bid}/start")
+    _wait_complete(client, bid)  # batch fully done BEFORE we subscribe
+
+    lines = []
+    with client.stream("GET", f"/api/batches/{bid}/events") as r:
+        assert r.status_code == 200
+        for line in r.iter_lines():   # MUST terminate (would hang forever without the fix)
+            lines.append(line)
+    body = "\n".join(lines)
+    assert "snapshot" in body
+    assert "complete" in body
