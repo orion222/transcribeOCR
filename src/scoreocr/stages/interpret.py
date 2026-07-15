@@ -68,6 +68,7 @@ def run_interpret(
     only_measures: set[int] | None = None,
     feedback: dict[int, str] | None = None,
     max_workers: int = 4,
+    on_progress=None,
 ) -> None:
     state = ws.load_state()
     feedback = feedback or {}
@@ -85,6 +86,8 @@ def run_interpret(
     for entry in state.pages:
         contexts.update(_contexts_for_page(ws, entry.page, meta))
     targets = sorted(only_measures) if only_measures else sorted(contexts)
+    total = len(targets)
+    done = 0
 
     def work(number: int) -> tuple[int, MeasureIR | None, dict, str | None]:
         ctx = contexts[number]
@@ -97,12 +100,16 @@ def run_interpret(
         except Exception as exc:  # one bad measure never kills the job
             return number, None, {"input_tokens": 0, "output_tokens": 0}, str(exc)
 
-    def run_batch(numbers):
+    def run_batch(numbers, report: bool):
+        nonlocal done
         results = []
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             for number, ir, usage, error in pool.map(work, numbers):
                 state.input_tokens += usage["input_tokens"]
                 state.output_tokens += usage["output_tokens"]
+                if report and on_progress is not None:
+                    done += 1
+                    on_progress(min(done, total), total)
                 if error is not None:
                     err_path = ws.measure_ir_path(number).with_suffix(".error.json")
                     err_path.write_text(json.dumps({"measure": number, "error": error}))
@@ -111,7 +118,7 @@ def run_interpret(
                 results.append((number, ir))
         return results
 
-    results = run_batch(targets)
+    results = run_batch(targets, report=True)
 
     # validation bounce-back: one retry per measure with the duration mismatch
     bounce = {}
@@ -124,7 +131,7 @@ def run_interpret(
             contexts[number].prior_attempt = _load_prior(ws, number)
             contexts[number].feedback = bounce[number]
         feedback.update(bounce)
-        run_batch(sorted(bounce))
+        run_batch(sorted(bounce), report=False)
 
     state.status = "interpreted"
     ws.save_state(state)
