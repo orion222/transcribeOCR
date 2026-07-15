@@ -1,0 +1,11 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+body { margin: 0; }
+.app { max-width: 960px; margin: 0 auto; padding: 24px; }
+.card { border: 1px solid #8883; border-radius: 10px; padding: 16px; margin: 12px 0; }
+.bar { height: 8px; background: #8883; border-radius: 4px; overflow: hidden; }
+.bar > span { display: block; height: 100%; background: #4a90d9; transition: width .2s; }
+.row { display: flex; gap: 12px; align-items: center; }
+.dropzone { border: 2px dashed #8886; border-radius: 12px; padding: 40px; text-align: center; }
+.dropzone.over { border-color: #4a90d9; background: #4a90d922; }
+button { cursor: pointer; }
+.error { color: #c0392b; }
