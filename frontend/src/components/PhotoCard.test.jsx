@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import PhotoCard from "./PhotoCard.jsx";
 
 vi.mock("html-midi-player", () => ({}));
@@ -23,5 +23,23 @@ describe("PhotoCard", () => {
     expect(screen.getByText(/no staves found/)).toBeInTheDocument();
     screen.getByRole("button", { name: /retry/i }).click();
     expect(onRetry).toHaveBeenCalledWith("ph01");
+  });
+
+  it("fetches the preview and renders svg, player, and download link when done", async () => {
+    render(<PhotoCard batchId="b1" onRetry={() => {}}
+      photo={{ photo_id: "ph01", source_name: "a.png", status: "done", stage: "done" }} />);
+
+    expect(screen.getByText("Done")).toBeInTheDocument();
+
+    const link = screen.getByText(/download musicxml/i);
+    expect(link.getAttribute("href")).toContain("/photos/ph01/musicxml");
+
+    const player = document.querySelector("midi-player");
+    expect(player).not.toBeNull();
+    expect(player.getAttribute("src")).toContain("/photos/ph01/midi");
+
+    await waitFor(() => {
+      expect(document.querySelector("svg")).not.toBeNull();  // preview injected after fetch resolves
+    });
   });
 });
