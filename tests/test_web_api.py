@@ -88,3 +88,30 @@ def test_events_stream_ends_for_already_complete_batch(tmp_path):
     body = "\n".join(lines)
     assert "snapshot" in body
     assert "complete" in body
+
+
+def test_assets_merge_and_download(tmp_path):
+    from tests.conftest import draw_page
+    client = _client(tmp_path)
+    bid = client.post("/api/batches", json={}).json()["batch_id"]
+    data = _png_bytes(draw_page)
+    client.post(f"/api/batches/{bid}/photos",
+                files=[("files", ("p1.png", data, "image/png")),
+                       ("files", ("p2.png", data, "image/png"))])
+    client.post(f"/api/batches/{bid}/start")
+    final = _wait_complete(client, bid)
+    pid = final["photos"][0]["photo_id"]
+
+    xml = client.get(f"/api/batches/{bid}/photos/{pid}/musicxml")
+    assert xml.status_code == 200 and b"score-partwise" in xml.content
+
+    svgs = client.get(f"/api/batches/{bid}/photos/{pid}/preview").json()["svgs"]
+    assert svgs and "<svg" in svgs[0]
+
+    midi = client.get(f"/api/batches/{bid}/photos/{pid}/midi")
+    assert midi.status_code == 200 and midi.content[:4] == b"MThd"
+
+    merged = client.post(f"/api/batches/{bid}/merge")
+    assert merged.status_code == 200 and merged.json()["svg_count"] >= 1
+    mx = client.get(f"/api/batches/{bid}/merged/musicxml")
+    assert b"score-partwise" in mx.content

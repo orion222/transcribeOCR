@@ -4,11 +4,13 @@ import threading
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
+from scoreocr.web.audio import musicxml_to_midi
 from scoreocr.web.batch import BatchStore
 from scoreocr.web.broker import EventBroker
+from scoreocr.web.merge import merge_batch
 from scoreocr.web.runner import run_batch
 
 
@@ -91,6 +93,86 @@ def create_app(jobs_root: Path, build_interpreter=_default_build_interpreter) ->
                 broker.unsubscribe(bid, queue)
 
         return StreamingResponse(gen(), media_type="text/event-stream")
+
+    def _photo_ref(bid: str, pid: str):
+        manifest = _require(store, bid)
+        try:
+            return manifest, next(p for p in manifest.photos if p.photo_id == pid)
+        except StopIteration:
+            raise HTTPException(status_code=404, detail=f"unknown photo {pid}")
+
+    @app.get("/api/batches/{bid}/photos/{pid}/musicxml")
+    def photo_musicxml(bid: str, pid: str):
+        _, ref = _photo_ref(bid, pid)
+        path = store.workspace(bid, ref.job_id).output_dir / "score.musicxml"
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="not transcribed yet")
+        return FileResponse(path, media_type="application/vnd.recordare.musicxml+xml",
+                            filename=f"{ref.source_name}.musicxml")
+
+    @app.get("/api/batches/{bid}/photos/{pid}/preview")
+    def photo_preview(bid: str, pid: str):
+        _, ref = _photo_ref(bid, pid)
+        preview = store.workspace(bid, ref.job_id).output_dir / "preview"
+        svgs = [p.read_text() for p in sorted(preview.glob("*.svg"))]
+        return {"svgs": svgs}
+
+    @app.get("/api/batches/{bid}/photos/{pid}/midi")
+    def photo_midi(bid: str, pid: str):
+        _, ref = _photo_ref(bid, pid)
+        path = store.workspace(bid, ref.job_id).output_dir / "score.musicxml"
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="not transcribed yet")
+        return Response(musicxml_to_midi(path.read_text()), media_type="audio/midi")
+
+    @app.post("/api/batches/{bid}/photos/{pid}/retry")
+    def retry_photo(bid: str, pid: str):
+        _photo_ref(bid, pid)
+
+        def _work():
+            from scoreocr.web.runner import process_photo
+            interpreter = build_interpreter()
+            process_photo(store, broker, bid, pid, interpreter)
+            current = store.load(bid)
+            if all(p.status == "done" or p.status.startswith("failed:")
+                   for p in current.photos):
+                current.status = "complete"
+                store.save(current)
+                broker.publish(bid, {"type": "batch", "status": "complete"})
+
+        threading.Thread(target=_work, daemon=True).start()
+        return {"status": "processing"}
+
+    @app.post("/api/batches/{bid}/merge")
+    def merge(bid: str):
+        _require(store, bid)
+        try:
+            merge_batch(store, bid)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        svgs = list((store.merged_dir(bid) / "preview").glob("*.svg"))
+        return {"musicxml_url": f"/api/batches/{bid}/merged/musicxml",
+                "svg_count": len(svgs)}
+
+    @app.get("/api/batches/{bid}/merged/musicxml")
+    def merged_musicxml(bid: str):
+        path = store.merged_dir(bid) / "score.musicxml"
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="not merged yet")
+        return FileResponse(path, media_type="application/vnd.recordare.musicxml+xml",
+                            filename="merged.musicxml")
+
+    @app.get("/api/batches/{bid}/merged/preview")
+    def merged_preview(bid: str):
+        preview = store.merged_dir(bid) / "preview"
+        return {"svgs": [p.read_text() for p in sorted(preview.glob("*.svg"))]}
+
+    @app.get("/api/batches/{bid}/merged/midi")
+    def merged_midi(bid: str):
+        path = store.merged_dir(bid) / "score.musicxml"
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="not merged yet")
+        return Response(musicxml_to_midi(path.read_text()), media_type="audio/midi")
 
     return app
 
