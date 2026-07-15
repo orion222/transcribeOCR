@@ -53,3 +53,20 @@ def test_stage_failure_marks_job_failed(tmp_path, monkeypatch):
     state = json.loads((jobs[0] / "job.json").read_text())
     assert state["status"] == "failed:geometry"
     assert state["error"]
+
+
+def test_interpreter_build_failure_marks_failed_startup(tmp_path, synthetic_page, monkeypatch):
+    def boom():
+        raise RuntimeError("no ANTHROPIC_API_KEY")
+    monkeypatch.setattr(cli, "build_interpreter", boom)
+
+    code = cli.main([
+        "run", str(synthetic_page), "--jobs-root", str(tmp_path / "jobs"),
+    ])
+    assert code == 1
+
+    jobs = list((tmp_path / "jobs").iterdir())
+    assert len(jobs) == 1
+    state = json.loads((jobs[0] / "job.json").read_text())
+    assert state["status"] == "failed:startup"
+    assert state["error"]

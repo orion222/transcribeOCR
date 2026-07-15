@@ -86,7 +86,7 @@ def run_pipeline(
         state.status = f"failed:{stage}"
         state.error = str(exc)
         ws.save_state(state)
-        return PipelineResult(status=f"failed:{stage}", issues=[], error=str(exc))
+        return PipelineResult(status=f"failed:{stage}", issues=issues, error=str(exc))
 
     state = ws.load_state()
     state.status = "done"

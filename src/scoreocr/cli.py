@@ -28,7 +28,15 @@ def build_interpreter():
 def _run(args) -> int:
     ws = Workspace.create(args.jobs_root)
     print(f"job: {ws.root}")
-    interpreter = build_interpreter()
+    try:
+        interpreter = build_interpreter()
+    except Exception as exc:
+        state = ws.load_state()
+        state.status = "failed:startup"
+        state.error = str(exc)
+        ws.save_state(state)
+        print(f"error: failed:startup: {exc}", file=sys.stderr)
+        return 1
     result = run_pipeline(
         ws, interpreter, args.pages,
         self_check=args.self_check, max_workers=args.max_workers,
