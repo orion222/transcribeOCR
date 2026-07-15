@@ -161,10 +161,73 @@ For a job at `data/jobs/<job-id>/`:
 | `pages/<page>/transcription/mNNN.json` | Per-measure interpreted IR. |
 | `job.json` | Job status, token usage, and (on failure) the error. |
 
-## Development
+## Web app
+
+A browser front end lets you drag-and-drop a batch of page photos, watch
+each page transcribe with per-photo progress, preview/play/download
+finished pages as they land, and merge the whole batch into one score at
+the end.
+
+### Build and run
+
+```
+npm --prefix frontend install   # first time only
+npm --prefix frontend run build
+score-transcribe serve --jobs-root data/jobs
+```
+
+Then open http://127.0.0.1:8000 — FastAPI serves the built SPA at `/` and
+the API under `/api/...` from the same process. `serve` also accepts
+`--host` and `--port` (defaults `127.0.0.1:8000`).
+
+### Development workflow
+
+Run the API and the Vite dev server side by side, so frontend edits hot
+reload without a rebuild:
+
+```
+# terminal 1
+score-transcribe serve --jobs-root data/jobs
+
+# terminal 2
+npm --prefix frontend run dev
+```
+
+Open the Vite dev server URL (typically http://127.0.0.1:5173); its dev
+server proxies `/api` requests to `127.0.0.1:8000` (see
+`frontend/vite.config.js`), so the UI talks to the real backend.
+
+The static-SPA serving behavior — mounting `frontend/dist` at `/`, with a
+non-`/api` catch-all falling back to `index.html` — is covered by
+`tests/test_web_api.py::test_root_serves_spa_when_built` (it points
+FastAPI at a fake dist via the `SCOREOCR_FRONTEND_DIST` env var, so it
+runs without a real `npm run build`). When `frontend/dist` doesn't exist
+(e.g. it hasn't been built yet), the API-only routes still work; `/` and
+other non-`/api` paths simply 404.
+
+### Manual end-to-end smoke test
+
+The automated tests above use a `StubInterpreter` and need no API key.
+To verify the real flow against Claude end to end (requires
+`ANTHROPIC_API_KEY`):
+
+```
+# terminal 1 — build frontend then serve
+cd frontend && npm run build && cd ..
+score-transcribe serve --jobs-root data/jobs
+# terminal 2 (or a browser): open http://127.0.0.1:8000
+```
+
+Verify: upload 2 page images → Convert → per-photo progress advances →
+finished cards show preview + play + download while a later photo is
+still processing → after completion, "Merge all" shows the combined
+score with playback and download.
+
+## Tests
 
 ```bash
 pytest
+cd frontend && npm test
 ```
 
 The suite is fully offline — the interpreter is exercised with a fake
