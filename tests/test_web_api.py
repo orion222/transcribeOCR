@@ -133,3 +133,16 @@ def test_retry_reprocesses_and_recomputes_complete(tmp_path):
 
     final = _wait_complete(client, bid)   # recomputed back to complete after retry
     assert final["photos"][0]["status"] == "done"
+
+
+def test_root_serves_spa_when_built(tmp_path, monkeypatch):
+    # simulate a built frontend
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<!doctype html><title>spa</title>")
+    monkeypatch.setenv("SCOREOCR_FRONTEND_DIST", str(dist))
+
+    app = create_app(tmp_path / "jobs", build_interpreter=StubInterpreter)
+    client = TestClient(app)
+    r = client.get("/")
+    assert r.status_code == 200 and "spa" in r.text

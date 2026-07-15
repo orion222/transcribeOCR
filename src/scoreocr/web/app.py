@@ -1,5 +1,6 @@
 import asyncio
 import json as _json
+import os
 import threading
 from pathlib import Path
 
@@ -188,6 +189,29 @@ def create_app(jobs_root: Path, build_interpreter=_default_build_interpreter) ->
         if not path.exists():
             raise HTTPException(status_code=404, detail="not merged yet")
         return Response(musicxml_to_midi(path.read_text()), media_type="audio/midi")
+
+    dist = Path(os.environ.get("SCOREOCR_FRONTEND_DIST",
+                               Path(__file__).resolve().parents[3] / "frontend" / "dist"))
+    index = dist / "index.html"
+    if index.exists():
+        from fastapi.staticfiles import StaticFiles
+
+        assets = dist / "assets"
+        if assets.exists():
+            app.mount("/assets", StaticFiles(directory=assets), name="assets")
+
+        @app.get("/")
+        def _index():
+            return FileResponse(index)
+
+        @app.get("/{path:path}")
+        def _spa(path: str):
+            if path.startswith("api/"):
+                raise HTTPException(status_code=404, detail="not found")
+            candidate = dist / path
+            if candidate.is_file():
+                return FileResponse(candidate)
+            return FileResponse(index)
 
     return app
 
