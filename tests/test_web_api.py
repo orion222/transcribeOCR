@@ -47,3 +47,24 @@ def test_create_upload_start_snapshot(tmp_path):
     assert client.post(f"/api/batches/{bid}/start").status_code == 200
     final = _wait_complete(client, bid)
     assert [p["status"] for p in final["photos"]] == ["done", "done"]
+
+
+def test_events_stream_reports_completion(tmp_path):
+    from tests.conftest import draw_page
+    client = _client(tmp_path)
+    bid = client.post("/api/batches", json={}).json()["batch_id"]
+    data = _png_bytes(draw_page)
+    client.post(f"/api/batches/{bid}/photos",
+                files=[("files", ("p1.png", data, "image/png"))])
+    client.post(f"/api/batches/{bid}/start")
+
+    lines = []
+    with client.stream("GET", f"/api/batches/{bid}/events") as r:
+        assert r.status_code == 200
+        for line in r.iter_lines():
+            lines.append(line)
+            if '"status": "complete"' in line or '"status":"complete"' in line:
+                break
+    body = "\n".join(lines)
+    assert "snapshot" in body
+    assert "complete" in body

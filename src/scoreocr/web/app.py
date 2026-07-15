@@ -1,9 +1,10 @@
 import asyncio
+import json as _json
 import threading
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from scoreocr.web.batch import BatchStore
@@ -60,6 +61,34 @@ def create_app(jobs_root: Path, build_interpreter=_default_build_interpreter) ->
     @app.get("/api/batches/{bid}")
     def snapshot(bid: str):
         return JSONResponse(_require(store, bid).model_dump())
+
+    @app.get("/api/batches/{bid}/events")
+    async def events(bid: str, request: Request):
+        # Bind the broker to the loop actually serving requests. Idempotent
+        # (same loop under uvicorn/TestClient); guarantees worker-thread
+        # publishes reach subscribers without a startup hook.
+        broker.bind_loop(asyncio.get_running_loop())
+        manifest = _require(store, bid)
+        queue = broker.subscribe(bid)
+
+        async def gen():
+            try:
+                yield f"event: snapshot\ndata: {manifest.model_dump_json()}\n\n"
+                while True:
+                    if await request.is_disconnected():
+                        break
+                    try:
+                        event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    except asyncio.TimeoutError:
+                        yield ": keep-alive\n\n"
+                        continue
+                    yield f"event: message\ndata: {_json.dumps(event)}\n\n"
+                    if event.get("type") == "batch" and event.get("status") == "complete":
+                        break
+            finally:
+                broker.unsubscribe(bid, queue)
+
+        return StreamingResponse(gen(), media_type="text/event-stream")
 
     return app
 
