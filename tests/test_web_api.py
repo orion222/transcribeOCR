@@ -2,7 +2,6 @@ import io
 import time
 
 from fastapi.testclient import TestClient
-from PIL import Image
 
 from scoreocr.web.app import create_app
 from tests.test_cli import StubInterpreter

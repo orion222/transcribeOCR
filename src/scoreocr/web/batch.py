@@ -1,3 +1,4 @@
+import os
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,7 +61,10 @@ class BatchStore:
         return m
 
     def save(self, m: BatchManifest) -> None:
-        self._manifest_path(m.batch_id).write_text(m.model_dump_json(indent=2))
+        path = self._manifest_path(m.batch_id)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(m.model_dump_json(indent=2))
+        os.replace(tmp, path)
 
     def load(self, batch_id: str) -> BatchManifest:
         return BatchManifest.model_validate_json(self._manifest_path(batch_id).read_text())

@@ -19,3 +19,15 @@ def test_musicxml_to_midi_rejects_garbage():
         assert False, "expected RuntimeError"
     except RuntimeError:
         pass
+
+
+def test_musicxml_to_midi_works_off_main_thread(tmp_path, synthetic_page):
+    import concurrent.futures
+
+    ws = Workspace.create(tmp_path / "jobs")
+    run_pipeline(ws, StubInterpreter(), [synthetic_page])
+    xml = (ws.output_dir / "score.musicxml").read_text()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        data = pool.submit(musicxml_to_midi, xml).result()
+    assert data[:4] == b"MThd"

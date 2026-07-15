@@ -1,10 +1,10 @@
 import base64
 
-import verovio
+from scoreocr.verovio_util import new_toolkit
 
 
 def musicxml_to_midi(xml_text: str) -> bytes:
-    tk = verovio.toolkit()
+    tk = new_toolkit()
     tk.setOptions({"breaks": "encoded"})
     if not tk.loadData(xml_text):
         raise RuntimeError("verovio failed to load MusicXML for MIDI export")
