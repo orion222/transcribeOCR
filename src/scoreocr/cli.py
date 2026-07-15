@@ -54,6 +54,16 @@ def _run(args) -> int:
     return 1 if result.issues else 0
 
 
+def _serve(args) -> int:
+    import uvicorn
+
+    from scoreocr.web.app import create_app
+
+    app = create_app(args.jobs_root, build_interpreter=build_interpreter)
+    uvicorn.run(app, host=args.host, port=args.port)
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="score-transcribe")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -64,9 +74,16 @@ def main(argv=None) -> int:
     run.add_argument("--self-check", action="store_true")
     run.add_argument("--max-workers", type=int, default=4)
 
+    serve = sub.add_parser("serve", help="run the web app")
+    serve.add_argument("--jobs-root", type=Path, default=Path("data/jobs"))
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return _run(args)
+    if args.command == "serve":
+        return _serve(args)
     parser.error(f"unknown command {args.command}")
 
 
