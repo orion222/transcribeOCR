@@ -3,7 +3,7 @@ import { photoLabel, photoProgress } from "../state.js";
 import { photoMidiUrl, photoMusicxmlUrl, photoPreviewUrl } from "../api.js";
 import AudioPlayer from "./AudioPlayer.jsx";
 
-export default function PhotoCard({ batchId, photo, onRetry }) {
+export default function PhotoCard({ batchId, photo, onRetry, canRetry = true }) {
   const [svgs, setSvgs] = useState([]);
   const done = photo.status === "done";
   const failed = (photo.status || "").startsWith("failed:");
@@ -30,7 +30,7 @@ export default function PhotoCard({ batchId, photo, onRetry }) {
       {failed && (
         <div>
           <p className="error">{photo.error || "Processing failed"}</p>
-          <button onClick={() => onRetry(photo.photo_id)}>Retry</button>
+          <button disabled={!canRetry} onClick={() => onRetry(photo.photo_id)}>Retry</button>
         </div>
       )}
       {done && (

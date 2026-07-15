@@ -6,6 +6,7 @@ export default function ProcessingScreen({ batchId, state, onRetry }) {
   const finished = all.filter((p) => p.status === "done");
   const active = all.filter((p) => p.status !== "done");
   const doneCount = finished.length;
+  const canRetry = state.batchStatus === "complete";
 
   return (
     <div className="app">
@@ -16,10 +17,10 @@ export default function ProcessingScreen({ batchId, state, onRetry }) {
       </h1>
       <section>
         {active.map((p) => (
-          <PhotoCard key={p.photo_id} batchId={batchId} photo={p} onRetry={onRetry} />
+          <PhotoCard key={p.photo_id} batchId={batchId} photo={p} onRetry={onRetry} canRetry={canRetry} />
         ))}
       </section>
-      <FinishedSection batchId={batchId} photos={finished} onRetry={onRetry} />
+      <FinishedSection batchId={batchId} photos={finished} onRetry={onRetry} canRetry={canRetry} />
     </div>
   );
 }

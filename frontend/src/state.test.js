@@ -41,4 +41,9 @@ describe("state reducer", () => {
     const s = initialState(photos);
     expect(applyEvent(s, { type: "nonsense" })).toBe(s);
   });
+
+  it("uses the provided status when seeding from a snapshot", () => {
+    const s = initialState(photos, "complete");
+    expect(s.batchStatus).toBe("complete");
+  });
 });

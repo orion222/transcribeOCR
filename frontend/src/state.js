@@ -5,10 +5,10 @@ const STAGE_WEIGHT = {
   selfcheck: 0.95, done: 1.0,
 };
 
-export function initialState(photos) {
+export function initialState(photos, status = "created") {
   const byId = {};
   for (const p of photos) byId[p.photo_id] = { ...p };
-  return { batchStatus: "created", photos: byId };
+  return { batchStatus: status, photos: byId };
 }
 
 export function applyEvent(state, event) {

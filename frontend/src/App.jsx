@@ -22,8 +22,9 @@ export default function App() {
       const { photos } = await uploadPhotos(batch_id, files);
       setBatchId(batch_id);
       setState(initialState(photos));
+      if (esRef.current) esRef.current.close();
       esRef.current = openEvents(batch_id, {
-        onSnapshot: (snap) => setState(initialState(snap.photos)),
+        onSnapshot: (snap) => setState(initialState(snap.photos, snap.status)),
         onMessage: (event) => setState((s) => applyEvent(s, event)),
       });
       await startBatch(batch_id);
