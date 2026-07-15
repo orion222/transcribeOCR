@@ -45,3 +45,26 @@ def test_run_batch_isolates_photo_failure(tmp_path, synthetic_page):
     assert final.photos[0].status == "failed:geometry"
     assert final.photos[0].error
     assert final.photos[1].status == "done"
+
+
+def test_run_batch_isolates_unexpected_exception(tmp_path, synthetic_page, monkeypatch):
+    import scoreocr.web.runner as runner_mod
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("kaboom")
+
+    monkeypatch.setattr(runner_mod, "run_pipeline", boom)
+
+    data = synthetic_page.read_bytes()
+    store = BatchStore(tmp_path / "jobs")
+    m = store.create()
+    store.add_photo(m.batch_id, "p1.png", data, ".png")
+    store.add_photo(m.batch_id, "p2.png", data, ".png")
+
+    broker = EventBroker()  # no loop bound -> publish is a safe no-op
+    run_batch(store, broker, m.batch_id, build_interpreter=StubInterpreter)
+
+    final = store.load(m.batch_id)
+    assert final.status == "complete"                       # batch still completed
+    assert [p.status for p in final.photos] == ["failed:runner", "failed:runner"]
+    assert all(p.error for p in final.photos)               # both photos attempted + recorded

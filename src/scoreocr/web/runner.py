@@ -67,7 +67,15 @@ def run_batch(store: BatchStore, broker: EventBroker, batch_id: str,
 
     interpreter = build_interpreter()
     for ref in sorted(store.load(batch_id).photos, key=lambda p: p.order):
-        process_photo(store, broker, batch_id, ref.photo_id, interpreter)
+        try:
+            process_photo(store, broker, batch_id, ref.photo_id, interpreter)
+        except Exception as exc:  # a single photo's failure never aborts the batch
+            current = store.load(batch_id)
+            pref = _find(current, ref.photo_id)
+            pref.status = "failed:runner"
+            pref.error = str(exc)
+            store.save(current)
+            broker.publish(batch_id, _photo_event(pref))
 
     manifest = store.load(batch_id)
     manifest.status = "complete"
