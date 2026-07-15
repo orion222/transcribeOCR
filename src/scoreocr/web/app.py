@@ -129,15 +129,30 @@ def create_app(jobs_root: Path, build_interpreter=_default_build_interpreter) ->
     def retry_photo(bid: str, pid: str):
         _photo_ref(bid, pid)
 
+        # A retry may follow a completed run; reopen the batch and requeue the
+        # photo so clients see reprocessing in progress. Recompute to
+        # "complete" once every photo is terminal again.
+        def _reopen(m):
+            m.status = "processing"
+            pref = next(p for p in m.photos if p.photo_id == pid)
+            pref.status = "queued"
+            pref.error = None
+
+        store.update(bid, _reopen)
+        broker.publish(bid, {"type": "batch", "status": "processing"})
+
         def _work():
             from scoreocr.web.runner import process_photo
             interpreter = build_interpreter()
             process_photo(store, broker, bid, pid, interpreter)
-            current = store.load(bid)
-            if all(p.status == "done" or p.status.startswith("failed:")
-                   for p in current.photos):
-                current.status = "complete"
-                store.save(current)
+
+            def _finalize(m):
+                if all(p.status == "done" or p.status.startswith("failed:")
+                       for p in m.photos):
+                    m.status = "complete"
+
+            updated = store.update(bid, _finalize)
+            if updated.status == "complete":
                 broker.publish(bid, {"type": "batch", "status": "complete"})
 
         threading.Thread(target=_work, daemon=True).start()

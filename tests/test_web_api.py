@@ -115,3 +115,21 @@ def test_assets_merge_and_download(tmp_path):
     assert merged.status_code == 200 and merged.json()["svg_count"] >= 1
     mx = client.get(f"/api/batches/{bid}/merged/musicxml")
     assert b"score-partwise" in mx.content
+
+
+def test_retry_reprocesses_and_recomputes_complete(tmp_path):
+    from tests.conftest import draw_page
+    client = _client(tmp_path)
+    bid = client.post("/api/batches", json={}).json()["batch_id"]
+    data = _png_bytes(draw_page)
+    client.post(f"/api/batches/{bid}/photos",
+                files=[("files", ("p1.png", data, "image/png"))])
+    client.post(f"/api/batches/{bid}/start")
+    _wait_complete(client, bid)
+
+    pid = client.get(f"/api/batches/{bid}").json()["photos"][0]["photo_id"]
+    r = client.post(f"/api/batches/{bid}/photos/{pid}/retry")
+    assert r.status_code == 200 and r.json()["status"] == "processing"
+
+    final = _wait_complete(client, bid)   # recomputed back to complete after retry
+    assert final["photos"][0]["status"] == "done"

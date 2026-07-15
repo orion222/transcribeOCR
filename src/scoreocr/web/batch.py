@@ -1,5 +1,6 @@
 import os
 import secrets
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -34,6 +35,7 @@ class BatchStore:
     def __init__(self, root: Path):
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()
 
     def _dir(self, batch_id: str) -> Path:
         return self.root / batch_id
@@ -68,6 +70,17 @@ class BatchStore:
 
     def load(self, batch_id: str) -> BatchManifest:
         return BatchManifest.model_validate_json(self._manifest_path(batch_id).read_text())
+
+    def update(self, batch_id: str, mutate) -> BatchManifest:
+        """Atomically load -> mutate -> save the manifest under a lock and
+        return it. Serializes concurrent read-modify-write cycles (the batch
+        runner thread vs. retry threads) so status updates are never lost.
+        Readers use load() directly and stay lock-free — save() is atomic."""
+        with self._lock:
+            m = self.load(batch_id)
+            mutate(m)
+            self.save(m)
+            return m
 
     def add_photo(self, batch_id: str, source_name: str, data: bytes, suffix: str) -> PhotoRef:
         m = self.load(batch_id)
