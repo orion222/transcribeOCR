@@ -1,13 +1,12 @@
 from pathlib import Path
 
-import verovio
-
+from scoreocr.verovio_util import new_toolkit
 from scoreocr.workspace import Workspace
 
 
 def render_file(xml_path: Path, out_dir: Path, stem: str) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
-    tk = verovio.toolkit()
+    tk = new_toolkit()
     tk.setOptions({"svgViewBox": True, "adjustPageHeight": True, "breaks": "encoded"})
     if not tk.loadData(xml_path.read_text()):
         raise RuntimeError(f"verovio failed to load {xml_path}")
