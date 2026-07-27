@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -16,9 +17,19 @@ from scoreocr.workspace import Workspace
 
 def build_interpreter():
     import anthropic
+    from dotenv import load_dotenv
 
     from scoreocr.claude.interpreter import Interpreter
 
+    # Load ANTHROPIC_API_KEY (and any other vars) from a .env file in the
+    # project root if present. Real shell environment variables take
+    # precedence — load_dotenv does not override what is already set.
+    load_dotenv()
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY is not set. Copy .env.example to .env and add "
+            "your key, or export ANTHROPIC_API_KEY in your shell."
+        )
     return Interpreter(anthropic.Anthropic())
 
 
