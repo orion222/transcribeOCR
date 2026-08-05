@@ -29,8 +29,12 @@ if (!global.ResizeObserver) {
 
     observe(target) {
       // React Flow's container observer must fire at least once or the
-      // pane never gets a size and nothing renders.
-      this.callback([{ target }]);
+      // pane never gets a size and nothing renders. It also has to carry a
+      // `contentRect`: @xyflow/system's XYPanZoom sets up a second,
+      // separate ResizeObserver (`extentResizeObserver`) whose callback
+      // reads `entry.contentRect.width/height` with no guard, so an entry
+      // missing `contentRect` throws on the first real <ReactFlow> render.
+      this.callback([{ target, contentRect: target.getBoundingClientRect() }]);
     }
 
     unobserve() {}
