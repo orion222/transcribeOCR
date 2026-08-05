@@ -49,6 +49,12 @@ if (!global.DOMMatrixReadOnly) {
   };
 }
 
+// Unguarded on purpose: jsdom already defines offsetWidth/offsetHeight as
+// accessor getters, so `if (!HTMLElement.prototype.offsetWidth)` doesn't
+// return falsy and skip redefinition — it throws (`'get offsetWidth' called
+// on an object that is not a valid instance of HTMLElement`), crashing
+// setup. Redefining unconditionally is required; `configurable: true` still
+// lets a future real implementation replace this one.
 Object.defineProperties(HTMLElement.prototype, {
   offsetWidth: {
     configurable: true,
@@ -66,6 +72,10 @@ Object.defineProperties(HTMLElement.prototype, {
   },
 });
 
+// Unguarded on purpose: jsdom already implements getBoundingClientRect as a
+// real function returning an all-zero rect, so `if (!X)` checks a truthy
+// function, never fires, and the stub sits inert — the zero-size box React
+// Flow treats as "not ready" would slip through unchanged.
 HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect() {
   return {
     width: 1000,
