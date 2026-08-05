@@ -3,7 +3,7 @@
 Transcribes scanned piano sheet music into **MusicXML 4.0**.
 
 Give it page images (PNG/JPG) or a PDF; it detects the staff/system/measure
-geometry with OpenCV, asks Claude (vision) to read each measure into a
+geometry with OpenCV, asks a vision model to read each measure into a
 structured musical representation, then deterministically assembles,
 validates, and renders a MusicXML score you can open in MuseScore, Finale,
 Dorico, or any notation editor.
@@ -47,9 +47,10 @@ images/PDF
    measure into `pages/<page>/crops/`. The vertical span includes a margin
    above/below the system so ledger lines survive the crop.
 
-4. **interpret** — The vision step, using Claude (`claude-opus-4-8`). One
+4. **interpret** — The vision step (see [Providers](#providers) for how the
+   model is chosen; default `anthropic/claude-opus-4.5` via OpenRouter). One
    score-metadata call per page (key, time signature, title), then one call
-   per measure. Each measure call runs a **bounded tool loop**: Claude may
+   per measure. Each measure call runs a **bounded tool loop**: the model may
    call `zoom` or `grid_overlay` on the crop up to 3 times to look closer,
    then is forced to return a structured `MeasureIR` (notes, chords, rests,
    rhythm, beams, ties, tuplets, dynamics/tempo/harmony directions) via
@@ -76,7 +77,7 @@ images/PDF
    system/page breaks so the layout tracks the source.
 
 8. **self-check** *(optional, `--self-check`)* — Rasterizes each rendered
-   system back to an image (cairosvg) and asks Claude to compare it against
+   system back to an image (cairosvg) and asks the model to compare it against
    the source crop. Discrepant measures are bounced back through interpret →
    assemble → render, up to 2 rounds. Remaining discrepancies are reported.
 
@@ -93,19 +94,66 @@ source .venv/bin/activate` before installing.)
 
 ## Configuration
 
-The interpret and self-check stages call the Anthropic API, so you need an
-API key. Put it in a `.env` file in the project root — the CLI loads it
+The interpret and self-check stages call a vision model, so you need an API
+key. Put it in a `.env` file in the project root — the CLI loads it
 automatically at startup.
 
 ```bash
 cp .env.example .env
 # then edit .env and set your key:
-# ANTHROPIC_API_KEY=sk-ant-...
+# OPENROUTER_API_KEY=sk-or-v1-...
 ```
 
-`.env` is git-ignored so your key is never committed. A real
-`ANTHROPIC_API_KEY` exported in your shell takes precedence over the file, so
-CI/other environments can supply the key however they like.
+`.env` is git-ignored so your key is never committed. Real environment
+variables exported in your shell take precedence over the file, so CI/other
+environments can supply the key however they like.
+
+### Providers
+
+Two providers are supported. **OpenRouter is the default**, because it fronts
+any vision model worth pointing at this pipeline.
+
+| Provider | Key | Default model |
+| --- | --- | --- |
+| `openrouter` (default) | `OPENROUTER_API_KEY` | `anthropic/claude-opus-4.5` |
+| `anthropic` | `ANTHROPIC_API_KEY` | `claude-opus-4-8` |
+
+Both `run` and `serve` take `--provider` and `--model`; the equivalent
+environment variables are `SCOREOCR_PROVIDER` and `SCOREOCR_MODEL`, and flags
+win over them. Point it at any OpenRouter model that supports vision, tool
+calling, and structured outputs:
+
+```bash
+score-transcribe run page.png --model google/gemini-3-pro-preview
+score-transcribe run page.png --provider anthropic          # Anthropic API directly
+```
+
+Requests are sent with `provider.require_parameters`, so OpenRouter only routes
+to endpoints that actually honour the JSON schema and tool definitions — a model
+that silently ignored them would return prose that fails IR validation later in
+the pipeline.
+
+If `OPENROUTER_API_KEY` is unset but `ANTHROPIC_API_KEY` is present, the CLI
+falls back to the Anthropic provider and says so on stderr. Passing
+`--provider openrouter` explicitly disables that fallback and fails instead.
+
+<details>
+<summary>How the OpenRouter adapter works</summary>
+
+`Interpreter` speaks the Anthropic Messages shape natively. Rather than refactor
+it behind a provider protocol, `scoreocr.openrouter.OpenRouterClient` exposes the
+same `client.messages.create(**kwargs)` surface and
+`scoreocr.openrouter.translate` converts to and from OpenRouter's
+OpenAI-compatible `/chat/completions` — so `interpreter.py`, `prompts.py`, and
+`tools.py` are untouched and identical on both providers.
+
+One asymmetry is worth knowing about: an OpenAI-shaped `role: "tool"` message
+carries a plain string and cannot hold an image, but both of our tools (`zoom`,
+`grid_overlay`) return images. The adapter therefore answers such a tool call
+with a short text acknowledgement and attaches the image to the user turn that
+immediately follows, so the tool loop behaves the same on both providers.
+
+</details>
 
 **macOS + `--self-check` only:** the self-check stage uses `cairosvg`, which
 loads native cairo. If it fails to find it, install cairo
@@ -142,8 +190,9 @@ failed. On failure the job is not left in a mystery state: `job.json` records
 failing stage to stderr.
 
 Rough cost intuition: a page costs about one metadata call plus one call per
-measure (plus up to 3 extra tool calls for measures Claude chooses to zoom
-into), so a typical page is a few dozen Opus calls.
+measure (plus up to 3 extra tool calls for measures the model chooses to zoom
+into), so a typical page is a few dozen frontier-model calls. Switching
+`--model` to something cheaper is the main cost lever.
 
 ## Output layout
 
@@ -208,8 +257,8 @@ other non-`/api` paths simply 404.
 ### Manual end-to-end smoke test
 
 The automated tests above use a `StubInterpreter` and need no API key.
-To verify the real flow against Claude end to end (requires
-`ANTHROPIC_API_KEY`):
+To verify the real flow against a live model end to end (requires
+`OPENROUTER_API_KEY`, or `ANTHROPIC_API_KEY` with `--provider anthropic`):
 
 ```
 # terminal 1 — build frontend then serve
@@ -231,6 +280,7 @@ cd frontend && npm test
 ```
 
 The suite is fully offline — the interpreter is exercised with a fake
-Anthropic client, so no test makes a network call or needs an API key. On
+Anthropic client, and the OpenRouter adapter with an `httpx.MockTransport`,
+so no test makes a network call or needs an API key. On
 stock macOS, the cairosvg-dependent self-check tests need
 `DYLD_LIBRARY_PATH=/opt/homebrew/lib` (see Configuration).
