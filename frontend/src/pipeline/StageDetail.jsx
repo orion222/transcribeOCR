@@ -25,7 +25,10 @@ export default function StageDetail({ stage, onPrev, onNext }) {
           {stage.optional ? (
             <Badge color="gray">Optional</Badge>
           ) : stage.scope === "batch" ? (
-            <Badge color="blue">Batch step</Badge>
+            // grape, matching StageNode's batch accent stripe -- blue is
+            // already the hue "active" and the selection ring use elsewhere
+            // in this diagram, so it can't double as "batch" too.
+            <Badge color="grape">Batch step</Badge>
           ) : null}
         </Group>
 

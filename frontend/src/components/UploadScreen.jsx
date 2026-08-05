@@ -43,7 +43,10 @@ export default function UploadScreen({ onConvert }) {
           page at a time; finished pages appear below as they complete and can
           be merged into one score at the end. A page takes a few minutes.
         </Text>
-        <Anchor size="sm" href="#how-it-works" mt="xs">
+        {/* display="block": Anchor renders a bare <a>, which is inline, and
+            margin-top has no effect on inline non-replaced elements -- the
+            mt="xs" below was silently a no-op without this. */}
+        <Anchor size="sm" href="#how-it-works" mt="xs" display="block">
           See each stage of the pipeline ↓
         </Anchor>
       </details>

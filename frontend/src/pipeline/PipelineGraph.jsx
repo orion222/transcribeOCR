@@ -8,6 +8,7 @@
 import { useMemo } from "react";
 import { ReactFlow, Position } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { useComputedColorScheme } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { STAGES } from "./stages.js";
 import StageNode from "./StageNode.jsx";
@@ -17,15 +18,25 @@ import StageNode from "./StageNode.jsx";
 // treats as a reason to remount every node.
 const nodeTypes = { stage: StageNode };
 
+// Same reasoning as nodeTypes above: a `statuses = {}` default parameter
+// allocates a fresh object every render, which is a dependency of the
+// `nodes` useMemo below and would make it miss unconditionally.
+const NO_STATUSES = {};
+
 const HORIZONTAL_QUERY = "(min-width: 700px)";
 
-export default function PipelineGraph({ statuses = {}, selfCheck = false, selectedId, onSelect }) {
+export default function PipelineGraph({ statuses = NO_STATUSES, selfCheck = false, selectedId, onSelect }) {
   // useMediaQuery returns undefined before the media query resolves, and
   // always in jsdom (no real matchMedia there). Default explicitly to
   // horizontal -- the landing page is normally viewed at desktop widths --
   // rather than let undefined silently fall through to the vertical branch.
   const matches = useMediaQuery(HORIZONTAL_QUERY);
   const horizontal = matches ?? true;
+
+  // Mantine's `auto` color scheme defaults ReactFlow to light regardless of
+  // the OS/user preference; without this the dark-mode edge label background
+  // (react-flow's own CSS var) never switches and ships a bright white pill.
+  const scheme = useComputedColorScheme("light");
 
   const nodes = useMemo(
     () => STAGES.map((stage, i) => {
@@ -39,19 +50,21 @@ export default function PipelineGraph({ statuses = {}, selfCheck = false, select
           label: stage.label,
           state: status?.state ?? "idle",
           subLabel: status?.label,
-          optional: stage.optional,
           // selfcheck is the only stage the self-check toggle affects; it
           // renders dashed/faded when the option is off, matching the
-          // retry edge below.
-          dimmed: stage.id === "selfcheck" && !selfCheck,
+          // retry edge below. Guarded by statuses too: a live caller could
+          // pass an active status for selfcheck while selfCheck defaults to
+          // false, and the running stage must not render as "won't run".
+          dimmed: stage.id === "selfcheck" && !selfCheck && !statuses[stage.id],
           scope: stage.scope,
           selected: stage.id === selectedId,
+          onSelect,
           sourcePosition: horizontal ? Position.Right : Position.Bottom,
           targetPosition: horizontal ? Position.Left : Position.Top,
         },
       };
     }),
-    [horizontal, statuses, selfCheck, selectedId],
+    [horizontal, statuses, selfCheck, selectedId, onSelect],
   );
 
   const edges = useMemo(() => {
@@ -97,6 +110,8 @@ export default function PipelineGraph({ statuses = {}, selfCheck = false, select
         edges={edges}
         nodeTypes={nodeTypes}
         onNodeClick={(_, node) => onSelect?.(node.id)}
+        aria-label="Pipeline stages diagram"
+        colorMode={scheme}
         // This is a diagram on a landing page, not a canvas: every prop
         // below exists to stop React Flow acting like an interactive map.
         // Drop any of them and scrolling the page with the cursor over the
@@ -111,7 +126,18 @@ export default function PipelineGraph({ statuses = {}, selfCheck = false, select
         panOnDrag={false}
         panOnScroll={false}
         preventScrolling={false}
+        // React Flow's own tab stop is dropped in favor of StageNode's own
+        // tabIndex/onKeyDown (see StageNode.jsx): with elementsSelectable
+        // false, React Flow's built-in keydown handler is a dead end that
+        // also points screen readers at a description ("press enter or
+        // space to select, arrow keys to move, delete to remove") that is
+        // entirely false for this canvas.
+        nodesFocusable={false}
         fitView
+        // Tightened from the 0.1 default: at this container width the
+        // default padding costs ~20% of zoom and makes the node labels
+        // (already narrow by design, see StageNode.jsx) render below 10px.
+        fitViewOptions={{ padding: 0.03 }}
       />
     </div>
   );

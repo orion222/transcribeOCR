@@ -21,7 +21,9 @@ export default function HowItWorks({ selfCheck = false, statuses }) {
 
   return (
     <section id="how-it-works">
-      <Stack gap="md">
+      {/* mt="xl": the section otherwise abuts whatever precedes it on the
+          page (the Convert button, on the landing page) with no gap. */}
+      <Stack gap="md" mt="xl">
         <Title order={2}>How it works</Title>
         <PipelineGraph
           statuses={statuses}

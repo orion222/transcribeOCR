@@ -33,14 +33,16 @@ const STATE_STYLE = {
   },
 };
 
-export default function StageNode({ data }) {
+export default function StageNode({ id, data }) {
   const {
-    index, label, state, subLabel, optional, dimmed, scope,
-    selected, sourcePosition, targetPosition,
+    index, label, state, subLabel, dimmed, scope,
+    selected, sourcePosition, targetPosition, onSelect,
   } = data;
 
   const stateStyle = STATE_STYLE[state] ?? STATE_STYLE.idle;
   const stepNumber = index + 1;
+
+  const handleSelect = () => onSelect?.(id);
 
   return (
     <Paper
@@ -48,7 +50,20 @@ export default function StageNode({ data }) {
       radius="md"
       p="xs"
       role="button"
+      tabIndex={0}
       aria-label={`Step ${stepNumber}: ${label}`}
+      onClick={handleSelect}
+      onKeyDown={(e) => {
+        // React Flow's own tab stop is disabled (nodesFocusable={false} in
+        // PipelineGraph), so this is the only path from keyboard to
+        // selection -- Enter and Space both activate, matching native
+        // button behavior. preventDefault on Space stops the page scrolling.
+        if (e.key === "Enter") handleSelect();
+        if (e.key === " ") {
+          e.preventDefault();
+          handleSelect();
+        }
+      }}
       style={{
         // Fixed, narrow width: React Flow's own measurement and the jsdom
         // offsetWidth stub both read this inline style, and a wider node
@@ -64,27 +79,25 @@ export default function StageNode({ data }) {
         // off and for its retry edge (see PipelineGraph).
         borderStyle: dimmed ? "dashed" : "solid",
         opacity: dimmed ? 0.55 : 1,
-        // scope: "batch" (currently only merge) gets a top accent stripe in
-        // a hue no state uses, so it reads as "not per-page" no matter what
-        // state color is doing underneath.
-        borderTop: scope === "batch" ? "3px solid var(--mantine-color-grape-6)" : undefined,
         // Our own selection highlight -- see file header.
         borderWidth: selected ? 3 : 1,
+        // scope: "batch" (currently only merge) gets a top accent stripe in
+        // a hue no state uses, so it reads as "not per-page" no matter what
+        // state color is doing underneath. Longhands, and ordered AFTER
+        // borderWidth: borderWidth is a shorthand covering border-top-width,
+        // so setting it after a plain `borderTop` shorthand silently wins
+        // and collapses the stripe to 1px. Keep the ordering if this is
+        // touched again.
+        ...(scope === "batch" && {
+          borderTopWidth: 3,
+          borderTopColor: "var(--mantine-color-grape-6)",
+        }),
         boxShadow: selected ? "0 0 0 2px var(--mantine-color-blue-4)" : undefined,
       }}
     >
       <Handle type="target" position={targetPosition} />
-      <Text size="sm" fw={600}>{stepNumber}. {label}</Text>
+      <Text size="md" fw={600}>{stepNumber}. {label}</Text>
       {subLabel ? <Text size="xs" c="dimmed">{subLabel}</Text> : null}
-      {optional ? (
-        <Text
-          size="9px"
-          c="dimmed"
-          style={{ position: "absolute", top: 2, right: 4, lineHeight: 1 }}
-        >
-          optional
-        </Text>
-      ) : null}
       <Handle type="source" position={sourcePosition} />
     </Paper>
   );
