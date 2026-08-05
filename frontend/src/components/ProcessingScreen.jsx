@@ -1,3 +1,4 @@
+import { Container, Stack, Title } from "@mantine/core";
 import PhotoCard from "./PhotoCard.jsx";
 import FinishedSection from "./FinishedSection.jsx";
 
@@ -9,18 +10,18 @@ export default function ProcessingScreen({ batchId, state, onRetry }) {
   const canRetry = state.batchStatus === "complete";
 
   return (
-    <div className="app">
-      <h1>
+    <Container size="md" py="xl">
+      <Title order={1} size="h2" mb="md">
         {state.batchStatus === "complete"
           ? "All done"
           : `Processing ${Math.min(doneCount + 1, all.length)} of ${all.length}`}
-      </h1>
-      <section>
+      </Title>
+      <Stack component="section" gap="sm">
         {active.map((p) => (
           <PhotoCard key={p.photo_id} batchId={batchId} photo={p} onRetry={onRetry} canRetry={canRetry} />
         ))}
-      </section>
+      </Stack>
       <FinishedSection batchId={batchId} photos={finished} onRetry={onRetry} canRetry={canRetry} />
-    </div>
+    </Container>
   );
 }
