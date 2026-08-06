@@ -33,10 +33,17 @@ const STATE_STYLE = {
   },
 };
 
+// Fixed node height so all nine stages match regardless of whether their
+// label wraps to one or two lines at the 100px node width (see the width
+// comment below) -- sized to fit two lines of size="md" fw={600} text plus
+// an optional subLabel line plus the p="xs" padding, verified in Chrome
+// against the longest label, "8. Self-check", with a subLabel present.
+const NODE_HEIGHT = 96;
+
 export default function StageNode({ id, data }) {
   const {
     index, label, state, subLabel, dimmed, scope,
-    selected, sourcePosition, targetPosition, onSelect,
+    selected, sourcePosition, targetPosition, loopPosition, onSelect,
   } = data;
 
   const stateStyle = STATE_STYLE[state] ?? STATE_STYLE.idle;
@@ -69,6 +76,15 @@ export default function StageNode({ id, data }) {
         // offsetWidth stub both read this inline style, and a wider node
         // is exactly what makes fitView shrink the whole diagram illegibly.
         width: 100,
+        // Fixed height (see NODE_HEIGHT above) so handles sit at the same
+        // vertical offset on every node instead of jogging up and down with
+        // whether the label happened to wrap. Centered with flex rather than
+        // line-height so it still centers correctly when subLabel is absent.
+        height: NODE_HEIGHT,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
         textAlign: "center",
         cursor: "pointer",
         position: "relative",
@@ -95,10 +111,20 @@ export default function StageNode({ id, data }) {
         boxShadow: selected ? "0 0 0 2px var(--mantine-color-blue-4)" : undefined,
       }}
     >
-      <Handle type="target" position={targetPosition} />
+      <Handle type="target" position={targetPosition} id="main-target" />
       <Text size="md" fw={600}>{stepNumber}. {label}</Text>
       {subLabel ? <Text size="xs" c="dimmed">{subLabel}</Text> : null}
-      <Handle type="source" position={sourcePosition} />
+      <Handle type="source" position={sourcePosition} id="main-source" />
+      {/*
+        Loop handles for the selfcheck -> interpret retry edge (see
+        PipelineGraph). Only those two nodes are ever wired to one, but every
+        node gets the pair: it keeps this component generic (no stage-id
+        branching) and the extra 6px dot is no more visually noisy than the
+        main handles already on every node. loopPosition follows orientation
+        the same way sourcePosition/targetPosition do.
+      */}
+      <Handle type="target" position={loopPosition} id="loop-target" />
+      <Handle type="source" position={loopPosition} id="loop-source" />
     </Paper>
   );
 }

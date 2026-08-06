@@ -59,7 +59,10 @@ export default function PipelineGraph({ statuses = NO_STATUSES, selfCheck = fals
       return {
         id: stage.id,
         type: "stage",
-        position: horizontal ? { x: i * 130, y: 0 } : { x: 0, y: i * 90 },
+        // Vertical spacing (110) has to clear StageNode's fixed 96px height
+        // with room to spare -- it used to track a shorter auto-height node,
+        // and left as 90 it would now overlap the row below.
+        position: horizontal ? { x: i * 130, y: 0 } : { x: 0, y: i * 110 },
         data: {
           index: i,
           label: stage.label,
@@ -76,6 +79,12 @@ export default function PipelineGraph({ statuses = NO_STATUSES, selfCheck = fals
           onSelect,
           sourcePosition: horizontal ? Position.Right : Position.Bottom,
           targetPosition: horizontal ? Position.Left : Position.Top,
+          // The retry loop's own handle (see StageNode): in horizontal
+          // layout the main chain runs Left->Right, so the loop drops to
+          // the Bottom to arc under the row; in vertical layout the main
+          // chain already occupies Top/Bottom, so the loop moves to the
+          // Right instead.
+          loopPosition: horizontal ? Position.Bottom : Position.Right,
         },
       };
     }),
@@ -87,6 +96,12 @@ export default function PipelineGraph({ statuses = NO_STATUSES, selfCheck = fals
       id: `${stage.id}-${STAGES[i + 1].id}`,
       source: stage.id,
       target: STAGES[i + 1].id,
+      // Every node now has more than one handle of each type (see
+      // StageNode's loop handles), so the main-chain handle has to be
+      // named explicitly on every edge -- default handle resolution no
+      // longer picks the right one.
+      sourceHandle: "main-source",
+      targetHandle: "main-target",
       type: "smoothstep",
       style: { stroke: "var(--mantine-color-gray-6)" },
     }));
@@ -100,6 +115,12 @@ export default function PipelineGraph({ statuses = NO_STATUSES, selfCheck = fals
       id: "selfcheck-interpret",
       source: "selfcheck",
       target: "interpret",
+      // Its own handle pair (loop-source/loop-target, see StageNode): using
+      // the main-chain handles here is what made this edge route as a near
+      // flat line straight back through the node row instead of arcing
+      // below it.
+      sourceHandle: "loop-source",
+      targetHandle: "loop-target",
       type: "smoothstep",
       label: "retry ×2",
       style: {
