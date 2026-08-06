@@ -90,8 +90,8 @@ def test_request_maps_core_anthropic_kwargs():
 def test_request_default_model_used_when_kwargs_omit_it():
     kwargs = _anthropic_kwargs()
     kwargs.pop("model")
-    body = translate.to_chat_request(kwargs, default_model="google/gemini-3-pro")
-    assert body["model"] == "google/gemini-3-pro"
+    body = translate.to_chat_request(kwargs, default_model="google/gemini-3.1-pro-preview")
+    assert body["model"] == "google/gemini-3.1-pro-preview"
 
 
 def test_response_format_is_strict_with_a_hardened_schema():
