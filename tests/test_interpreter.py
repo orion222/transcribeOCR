@@ -124,6 +124,28 @@ def test_output_schema_is_api_safe():
     assert schema["additionalProperties"] is False
 
 
+def test_score_meta_title_goes_on_the_wire_under_an_alias():
+    """Google's schema converter reads a property named `title` as the enclosing
+    schema's own title annotation and drops it, then rejects the schema for
+    requiring a property it no longer declares. The alias sidesteps the
+    collision; without it the score title comes back empty on every run."""
+    schema = to_output_schema(ScoreMeta)
+    assert "score_title" in schema["properties"]
+    assert "title" not in schema["properties"]
+    assert schema["properties"]["score_title"]["type"] == "string"
+
+
+def test_score_meta_alias_is_wire_only():
+    """The alias must not leak into Python attribute access or the on-disk JSON,
+    which existing job directories are already written in."""
+    meta = ScoreMeta(title="Etude")           # by field name (web batch seeding)
+    assert meta.title == "Etude"
+    assert json.loads(meta.model_dump_json())["title"] == "Etude"
+    # A provider response uses the alias; an existing job file uses the name.
+    assert ScoreMeta.model_validate({"score_title": "X"}).title == "X"
+    assert ScoreMeta.model_validate_json('{"title": "Y"}').title == "Y"
+
+
 def test_output_schema_voices_wire_adapter():
     """Regression test for the dict[str, list[Event]] -> object schema adapter.
 

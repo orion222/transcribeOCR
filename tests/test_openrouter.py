@@ -139,6 +139,66 @@ def test_hardened_schema_still_accepts_real_model_output():
     assert MeasureIR.model_validate(VALID_IR).number == 1
 
 
+def test_harden_keeps_properties_whose_names_are_keywords():
+    """Regression test: `title` and `default` are stripped as keywords, but they
+    are also legal field names. A walk that recursed over every value alike
+    deleted such a field from `properties` while `required` still named it, and
+    the provider rejected the request for requiring an undeclared property. On a
+    lenient provider it was worse than an error — the field was quietly dropped
+    from the schema, so the model never populated it.
+    """
+    schema = {
+        "type": "object",
+        "title": "Outer",
+        "properties": {
+            "title": {"type": "string", "title": "Title", "default": ""},
+            "default": {"type": "integer", "default": 3},
+            "nested": {
+                "type": "object",
+                "title": "Nested",
+                "properties": {"title": {"type": "string", "default": ""}},
+            },
+            "listed": {"type": "array", "items": {
+                "type": "object", "title": "Item",
+                "properties": {"default": {"type": "string", "default": "x"}},
+            }},
+        },
+    }
+    out = translate.harden_schema(schema)
+
+    assert set(out["properties"]) == {"title", "default", "nested", "listed"}
+    assert out["required"] == ["title", "default", "nested", "listed"]
+    assert out["properties"]["nested"]["properties"] == {"title": {"type": "string"}}
+    assert out["properties"]["nested"]["required"] == ["title"]
+    item = out["properties"]["listed"]["items"]
+    assert item["properties"] == {"default": {"type": "string"}}
+    assert item["required"] == ["default"]
+    # Keyword annotations are gone everywhere, at every depth.
+    assert "title" not in out or not isinstance(out.get("title"), str)
+    assert all("default" not in p for p in out["properties"].values())
+
+
+def test_harden_required_never_names_a_missing_property():
+    """The exact shape the provider rejected: required must always be a subset of
+    the properties that survive hardening."""
+    for model in (MeasureIR, ScoreMeta):
+        out = translate.harden_schema(to_output_schema(model))
+
+        def _walk(node):
+            if isinstance(node, dict):
+                if "required" in node:
+                    declared = set(node.get("properties", {}))
+                    missing = set(node["required"]) - declared
+                    assert not missing, f"required names undeclared {missing}"
+                for value in node.values():
+                    _walk(value)
+            elif isinstance(node, list):
+                for item in node:
+                    _walk(item)
+
+        _walk(out)
+
+
 def test_schema_is_named_after_its_model():
     """Distinct shapes must not share a name — providers key compiled-schema
     caches on it."""

@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 DIVISIONS = 24  # divisions per quarter note, fixed for the whole score
 
@@ -47,7 +47,16 @@ class MeasureIR(BaseModel):
 
 
 class ScoreMeta(BaseModel):
-    title: str = ""
+    # `title` is renamed to `score_title` on the wire. Google's schema validator
+    # reads a property named `title` as the enclosing schema's own title
+    # annotation, drops it from `properties`, then rejects the schema for
+    # requiring a property it can no longer see. The alias only affects the
+    # provider-facing JSON: `meta.title` in Python and `"title"` on disk are
+    # unchanged, because model_json_schema() is by_alias while model_dump_json()
+    # is not, and populate_by_name keeps ScoreMeta(title=...) working.
+    model_config = ConfigDict(populate_by_name=True)
+
+    title: str = Field("", alias="score_title")
     key_fifths: int = Field(0, ge=-7, le=7)
     time_beats: int = 4
     time_beat_type: int = 4
