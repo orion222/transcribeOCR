@@ -35,9 +35,13 @@ images/PDF
    300 DPI (pypdfium2); image files are converted with Pillow. All pages of a
    single run form one job / one song.
 
-2. **geometry** — Pure OpenCV, no ML. Horizontal dark-pixel projections find
-   staff lines, which are grouped in fives and paired into grand-staff
-   *systems*; vertical projections find barlines, which delimit *measures*.
+2. **geometry** — Pure OpenCV, no ML. Staff lines are horizontal runs spanning
+   ≥40% of the page width, grouped in fives and paired into grand-staff
+   *systems*; barlines are vertical runs spanning ≥75% of a system's height, and
+   delimit *measures*. Both tests look for one *continuous* run rather than for
+   total ink in a row or column, so that collinear marks — a row of tuplet
+   brackets between the staves, a treble stem above a bass stem — cannot add up
+   into a phantom line.
    Measures are numbered absolutely and continuously across systems and pages.
    Writes `pages/<page>/geometry.json`. If the geometry is implausible
    (staff lines don't group into fives, no barlines found) it raises rather

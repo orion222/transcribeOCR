@@ -28,6 +28,41 @@ def _run_centers(mask: np.ndarray) -> list[int]:
     return centers
 
 
+def _line_mask(dark: np.ndarray, fraction: float, *, horizontal: bool) -> np.ndarray:
+    """Rows (or columns) holding one run at least `fraction` of the span across.
+
+    A line has to be *continuous* to be a line. Scoring each row or column by
+    its total dark pixels cannot tell one long line from many short collinear
+    ones, and engraved music is full of the latter:
+
+    - Tuplet and pedal brackets sit in the gap between the staves of a grand
+      staff, one per measure and all on the same row. None is staff-line-long,
+      but summed they ink half the page width and pass for a staff line — which
+      leaves a staff-line count that is not a multiple of 5.
+    - A treble stem above a bass stem at the same x, plus the ten staff lines
+      they cross, ink three quarters of a system band and pass for a barline —
+      which splits one measure in two and shifts every measure number after it.
+
+    Eroding along the line's own axis keeps only runs that really are that long,
+    and the two cases separate with room to spare: on a 300 DPI A4 page staff
+    lines run to 83% of the width against a bracket row's 13%, and barlines span
+    a whole band against a stem pair's 46%.
+    """
+    length = dark.shape[1] if horizontal else dark.shape[0]
+    min_run = max(1, int(length * fraction))
+    ksize = (min_run, 1) if horizontal else (1, min_run)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, ksize)
+    # A pixel survives erosion only if the whole kernel around it is ink, so a
+    # surviving row or column is exactly one that held a run that long. The
+    # explicit zero border matters: OpenCV erodes against a border of max by
+    # default, which would score a run reaching the edge as if it continued past
+    # it — and a system band's first and last rows are staff lines that stems
+    # land on, so stem pairs would keep passing for barlines.
+    eroded = cv2.erode(dark.astype(np.uint8), kernel,
+                       borderType=cv2.BORDER_CONSTANT, borderValue=0)
+    return eroded.any(axis=1 if horizontal else 0)
+
+
 def _group_staves(line_ys: list[int]) -> list[StaffBox]:
     if len(line_ys) < 5 or len(line_ys) % 5 != 0:
         raise GeometryConfidenceError(
@@ -56,8 +91,7 @@ def detect_page_geometry(image_path: Path, page: str) -> PageGeometry:
     dark = binary > 0
     height, width = dark.shape
 
-    row_fraction = dark.sum(axis=1) / width
-    line_ys = _run_centers(row_fraction > ROW_LINE_FRACTION)
+    line_ys = _run_centers(_line_mask(dark, ROW_LINE_FRACTION, horizontal=True))
     staves = _group_staves(line_ys)
     if len(staves) % 2 != 0:
         raise GeometryConfidenceError(f"{len(staves)} staves do not pair into grand staves")
@@ -68,12 +102,14 @@ def detect_page_geometry(image_path: Path, page: str) -> PageGeometry:
         treble, bass = staves[i], staves[i + 1]
         top, bottom = treble.top, bass.bottom
         band = dark[top : bottom + 1, :]
+        # Total ink per column, which is the right measure for the system's
+        # horizontal extent — any mark counts, continuous or not.
         col_fraction = band.sum(axis=0) / band.shape[0]
         if not (col_fraction > 0.05).any():
             raise GeometryConfidenceError("empty system band")
         left = int(np.argmax(col_fraction > 0.05))
         right = int(len(col_fraction) - np.argmax(col_fraction[::-1] > 0.05) - 1)
-        barline_xs = _run_centers(col_fraction > BARLINE_FRACTION)
+        barline_xs = _run_centers(_line_mask(band, BARLINE_FRACTION, horizontal=False))
         if len(barline_xs) < 2:
             raise GeometryConfidenceError("no barlines found in system")
         n_measures = len(barline_xs) - 1
