@@ -109,7 +109,12 @@ export default function PipelineGraph({ statuses = NO_STATUSES, selfCheck = fals
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        onNodeClick={(_, node) => onSelect?.(node.id)}
+        // No onNodeClick here: selection is wired entirely through the
+        // Paper's own onClick in StageNode (see the onSelect passed via
+        // data above), so a single click produces a single call. Wiring
+        // both this and the Paper's onClick double-fires onSelect per
+        // click -- harmless while setSelectedId is idempotent, but a trap
+        // for any future onSelect with a side effect.
         aria-label="Pipeline stages diagram"
         colorMode={scheme}
         // This is a diagram on a landing page, not a canvas: every prop

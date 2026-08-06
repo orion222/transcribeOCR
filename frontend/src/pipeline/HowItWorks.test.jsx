@@ -6,9 +6,10 @@
 // ends. Edges do not render under jsdom -- nodes never acquire measured
 // dimensions here (probe: `.react-flow__edge` count is 0) -- so edge and
 // selfCheck-styling assertions are not possible in this file.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "../testUtils.jsx";
 import HowItWorks from "./HowItWorks.jsx";
+import PipelineGraph from "./PipelineGraph.jsx";
 import { stageById } from "./stages.js";
 
 describe("HowItWorks", () => {
@@ -17,6 +18,20 @@ describe("HowItWorks", () => {
     expect(screen.getByText(stageById("ingest").plain)).toBeInTheDocument();
     fireEvent.click(screen.getByText("4. Interpret"));
     expect(screen.getByText(stageById("interpret").plain)).toBeInTheDocument();
+  });
+
+  it("a single click fires onSelect exactly once (regression test: selection must be wired through one path, not two)", () => {
+    // Two paths into the same node used to both call onSelect -- React
+    // Flow's own onNodeClick, and the Paper's own onClick (added for F1's
+    // keyboard support). Harmless while onSelect is `setSelectedId`
+    // (idempotent), but a trap for any future onSelect with a side effect.
+    // Tested directly against PipelineGraph, the component that owns the
+    // wiring, rather than through HowItWorks.
+    const onSelect = vi.fn();
+    render(<PipelineGraph selectedId="ingest" onSelect={onSelect} />);
+    fireEvent.click(screen.getByText("4. Interpret"));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith("interpret");
   });
 
   it("activating a focused node with Enter swaps the detail panel (regression test for F1)", () => {
