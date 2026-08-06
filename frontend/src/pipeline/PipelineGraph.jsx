@@ -5,7 +5,7 @@
 // `statuses` map rather than a single "current stage" string so both
 // callers can share it. The landing page simply omits the prop, which
 // leaves every stage "idle".
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ReactFlow, Position } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useComputedColorScheme } from "@mantine/core";
@@ -25,6 +25,10 @@ const NO_STATUSES = {};
 
 const HORIZONTAL_QUERY = "(min-width: 700px)";
 
+// Small padding: the graph is ~1140px wide inside a 960px container, so the
+// default 0.1 (which costs 20% of the pane) shrank labels to ~9px.
+const FIT_PADDING = 0.03;
+
 export default function PipelineGraph({ statuses = NO_STATUSES, selfCheck = false, selectedId, onSelect }) {
   // useMediaQuery returns undefined before the media query resolves, and
   // always in jsdom (no real matchMedia there). Default explicitly to
@@ -37,6 +41,17 @@ export default function PipelineGraph({ statuses = NO_STATUSES, selfCheck = fals
   // the OS/user preference; without this the dark-mode edge label background
   // (react-flow's own CSS var) never switches and ships a bright white pill.
   const scheme = useComputedColorScheme("light");
+
+  // React Flow's `fitView` prop fits once, during init, before the pane has
+  // settled at its final size -- which leaves the viewport translated wrong:
+  // at desktop width four of the nine nodes ended up clipped off the right
+  // edge. It also never refits when the layout flips at 700px. Hold the
+  // instance and refit after layout, and again on every orientation change.
+  const instance = useRef(null);
+  useEffect(() => {
+    const id = setTimeout(() => instance.current?.fitView({ padding: FIT_PADDING }), 0);
+    return () => clearTimeout(id);
+  }, [horizontal]);
 
   const nodes = useMemo(
     () => STAGES.map((stage, i) => {
@@ -139,10 +154,11 @@ export default function PipelineGraph({ statuses = NO_STATUSES, selfCheck = fals
         // entirely false for this canvas.
         nodesFocusable={false}
         fitView
+        onInit={(inst) => { instance.current = inst; }}
         // Tightened from the 0.1 default: at this container width the
         // default padding costs ~20% of zoom and makes the node labels
         // (already narrow by design, see StageNode.jsx) render below 10px.
-        fitViewOptions={{ padding: 0.03 }}
+        fitViewOptions={{ padding: FIT_PADDING }}
       />
     </div>
   );
