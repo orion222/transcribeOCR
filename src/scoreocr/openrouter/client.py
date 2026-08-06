@@ -17,7 +17,7 @@ from scoreocr.openrouter.translate import (
 )
 
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "anthropic/claude-opus-4.5"
+DEFAULT_MODEL = "google/gemini-3.1-pro-preview"
 # Vision + reasoning over a full page can legitimately run for minutes.
 DEFAULT_TIMEOUT = httpx.Timeout(600.0, connect=15.0)
 DEFAULT_MAX_RETRIES = 3

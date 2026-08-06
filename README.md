@@ -52,9 +52,10 @@ images/PDF
    above/below the system so ledger lines survive the crop.
 
 4. **interpret** — The vision step (see [Providers](#providers) for how the
-   model is chosen; default `anthropic/claude-opus-4.5` via OpenRouter). One
-   score-metadata call per page (key, time signature, title), then one call
-   per measure. Each measure call runs a **bounded tool loop**: the model may
+   model is chosen; default `google/gemini-3.1-pro-preview` via OpenRouter).
+   One score-metadata call per job (key, time signature, title — read from the
+   first page), then one call per measure. Each measure call runs a **bounded
+   tool loop**: the model may
    call `zoom` or `grid_overlay` on the crop up to 3 times to look closer,
    then is forced to return a structured `MeasureIR` (notes, chords, rests,
    rhythm, beams, ties, tuplets, dynamics/tempo/harmony directions) via
@@ -119,7 +120,7 @@ any vision model worth pointing at this pipeline.
 
 | Provider | Key | Default model |
 | --- | --- | --- |
-| `openrouter` (default) | `OPENROUTER_API_KEY` | `anthropic/claude-opus-4.5` |
+| `openrouter` (default) | `OPENROUTER_API_KEY` | `google/gemini-3.1-pro-preview` |
 | `anthropic` | `ANTHROPIC_API_KEY` | `claude-opus-4-8` |
 
 Both `run` and `serve` take `--provider` and `--model`; the equivalent
@@ -128,9 +129,14 @@ win over them. Point it at any OpenRouter model that supports vision, tool
 calling, and structured outputs:
 
 ```bash
-score-transcribe run page.png --model google/gemini-3-pro-preview
+score-transcribe run page.png --model anthropic/claude-opus-4.5
 score-transcribe run page.png --provider anthropic          # Anthropic API directly
 ```
+
+Model ids must match OpenRouter's catalogue exactly; a near-miss is a 404 at the
+first call, not a warning. Check one with
+`curl -s https://openrouter.ai/api/v1/models | grep <id>` before committing it
+to a config.
 
 Requests are sent with `provider.require_parameters`, so OpenRouter only routes
 to endpoints that actually honour the JSON schema and tool definitions — a model

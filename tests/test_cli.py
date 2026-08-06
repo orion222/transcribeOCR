@@ -99,14 +99,14 @@ def test_defaults_to_openrouter(clean_env, monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
     interpreter = cli.build_interpreter()
     assert isinstance(interpreter.client, OpenRouterClient)
-    assert interpreter.model == "anthropic/claude-opus-4.5"
+    assert interpreter.model == "google/gemini-3.1-pro-preview"
 
 
 def test_model_override_reaches_both_client_and_interpreter(clean_env, monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
-    interpreter = cli.build_interpreter(model="google/gemini-3-pro")
-    assert interpreter.model == "google/gemini-3-pro"
-    assert interpreter.client.model == "google/gemini-3-pro"
+    interpreter = cli.build_interpreter(model="google/gemini-3.1-pro-preview")
+    assert interpreter.model == "google/gemini-3.1-pro-preview"
+    assert interpreter.client.model == "google/gemini-3.1-pro-preview"
 
 
 def test_env_selects_provider_and_model(clean_env, monkeypatch):
@@ -133,7 +133,7 @@ def test_falls_back_to_anthropic_when_openrouter_key_missing(clean_env, monkeypa
 def test_fallback_drops_an_openrouter_namespaced_model(clean_env, monkeypatch):
     """"vendor/model" ids mean nothing to the Anthropic API."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-    monkeypatch.setenv("SCOREOCR_MODEL", "google/gemini-3-pro")
+    monkeypatch.setenv("SCOREOCR_MODEL", "google/gemini-3.1-pro-preview")
     assert cli.build_interpreter().model == cli._default_anthropic_model()
 
 
@@ -143,9 +143,10 @@ def test_fallback_keeps_a_bare_model_id(clean_env, monkeypatch):
 
 
 def test_explicit_anthropic_rejects_an_openrouter_namespaced_model(clean_env, monkeypatch):
-    """.env.example suggests SCOREOCR_MODEL=anthropic/claude-opus-4.5; combined
-    with --provider anthropic that id would 404, so fail with a clear message
-    instead of silently rewriting the model the user named."""
+    """An OpenRouter id under the `anthropic/` namespace looks like it should
+    work with --provider anthropic, but the Anthropic API would 404 on it. Fail
+    with a clear message instead of silently rewriting the model the user
+    named."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
     monkeypatch.setenv("SCOREOCR_MODEL", "anthropic/claude-opus-4.5")
     with pytest.raises(RuntimeError, match="looks like an OpenRouter id"):
@@ -181,7 +182,7 @@ def test_serve_reload_passes_an_import_string_and_exports_config(tmp_path, monke
 
     cli.main([
         "serve", "--reload", "--jobs-root", str(tmp_path / "jobs"),
-        "--model", "google/gemini-3-pro-preview",
+        "--model", "google/gemini-3.1-pro-preview",
     ])
 
     assert seen["app"] == "scoreocr.web.app:app_from_env"
@@ -189,7 +190,7 @@ def test_serve_reload_passes_an_import_string_and_exports_config(tmp_path, monke
     # Watching the cwd would rebuild on every file a running job writes.
     assert seen["reload_dirs"] == [str(Path(cli.__file__).resolve().parent)]
     assert os.environ["SCOREOCR_JOBS_ROOT"] == str(tmp_path / "jobs")
-    assert os.environ["SCOREOCR_MODEL"] == "google/gemini-3-pro-preview"
+    assert os.environ["SCOREOCR_MODEL"] == "google/gemini-3.1-pro-preview"
 
 
 def test_serve_without_reload_passes_the_app_instance(tmp_path, monkeypatch):

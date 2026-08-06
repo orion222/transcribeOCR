@@ -263,24 +263,45 @@ def harden_schema(schema: dict) -> dict:
     request rejected by stricter providers (`scoreocr.claude.schema` only prunes
     the keywords Anthropic rejects). Promoting everything to required also makes
     `default` moot.
+
+    Both changes are keyword-level, so the walk has to know which dicts are
+    schema nodes and which are maps of field name to schema. Recursing over
+    every value alike deletes a *field* called `title` or `default` from a
+    `properties` map while `required` still names it, and the request is then
+    rejected for requiring a property the schema no longer declares.
     """
     out = copy.deepcopy(schema)
     _harden(out)
     return out
 
 
+# Where child schemas live, so the walk can tell a keyword from a field name.
+_CHILD_SCHEMA_MAPS = ("properties", "$defs", "definitions", "patternProperties")
+_CHILD_SCHEMA_LISTS = ("anyOf", "oneOf", "allOf", "prefixItems")
+_CHILD_SCHEMA_NODES = ("items", "not", "if", "then", "else", "additionalProperties")
+
+
 def _harden(node) -> None:
-    if isinstance(node, dict):
-        for key in _STRICT_UNSUPPORTED_KEYS & node.keys():
-            del node[key]
-        properties = node.get("properties")
-        if node.get("type") == "object" and isinstance(properties, dict):
-            node["required"] = list(properties)
-        for value in node.values():
-            _harden(value)
-    elif isinstance(node, list):
-        for item in node:
-            _harden(item)
+    if not isinstance(node, dict):
+        return
+    for key in _STRICT_UNSUPPORTED_KEYS & node.keys():
+        del node[key]
+    for key in _CHILD_SCHEMA_MAPS:
+        if isinstance(node.get(key), dict):
+            for child in node[key].values():
+                _harden(child)
+    for key in _CHILD_SCHEMA_LISTS:
+        if isinstance(node.get(key), list):
+            for child in node[key]:
+                _harden(child)
+    for key in _CHILD_SCHEMA_NODES:
+        if isinstance(node.get(key), dict):
+            _harden(node[key])
+    # After the recursion, so `required` can only ever name properties that
+    # actually survived it.
+    properties = node.get("properties")
+    if node.get("type") == "object" and isinstance(properties, dict):
+        node["required"] = list(properties)
 
 
 def to_chat_request(kwargs: dict, *, default_model: str) -> dict:
