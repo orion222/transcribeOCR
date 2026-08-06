@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Alert, Container } from "@mantine/core";
 import UploadScreen from "./components/UploadScreen.jsx";
 import ProcessingScreen from "./components/ProcessingScreen.jsx";
 import MergePanel from "./components/MergePanel.jsx";
@@ -36,7 +37,11 @@ export default function App() {
   const onRetry = (pid) => retryPhoto(batchId, pid);
 
   const banner = error ? (
-    <div className="app"><p className="error">{error}</p></div>
+    <Container size="md" pt="md">
+      <Alert color="red" variant="light" title="Something went wrong">
+        {error}
+      </Alert>
+    </Container>
   ) : null;
 
   if (!batchId || !state) {
@@ -48,7 +53,7 @@ export default function App() {
       {banner}
       <ProcessingScreen batchId={batchId} state={state} onRetry={onRetry} />
       {state.batchStatus === "complete" && (
-        <div className="app"><MergePanel batchId={batchId} /></div>
+        <Container size="md" pb="xl"><MergePanel batchId={batchId} /></Container>
       )}
     </>
   );

@@ -1,4 +1,7 @@
 import { useState } from "react";
+import {
+  ActionIcon, Button, Checkbox, Container, Group, Paper, Stack, Text, TextInput, Title,
+} from "@mantine/core";
 import { acceptFile, reorder } from "../upload.js";
 
 export default function UploadScreen({ onConvert }) {
@@ -29,67 +32,94 @@ export default function UploadScreen({ onConvert }) {
   };
 
   return (
-    <div className="app">
-      <h1>Sheet Music → MusicXML</h1>
+    <Container size="md" py="xl">
+      <Title order={1} size="h2" mb="md">Sheet Music → MusicXML</Title>
 
       <details open>
         <summary>How it works</summary>
-        <p>Upload clear photos of each page in reading order (PNG, JPG, or PDF).
-        Each page is transcribed to MusicXML one at a time; finished pages appear
-        below as they complete, and you can merge them into a single score at the
-        end. Transcription calls Claude per measure, so a page can take a few
-        minutes.</p>
+        <Text size="sm" c="dimmed" mt="xs">
+          Upload clear photos of each page in reading order (PNG, JPG, or PDF).
+          Each page is transcribed to MusicXML one at a time; finished pages appear
+          below as they complete, and you can merge them into a single score at the
+          end. Transcription calls Claude per measure, so a page can take a few
+          minutes.
+        </Text>
       </details>
 
-      <div
-        className={`dropzone ${over ? "over" : ""}`}
+      {/* Native input + hand-written drag handlers are kept deliberately:
+          @mantine/dropzone would change upload behavior and test interaction. */}
+      <Paper
+        withBorder
+        radius="md"
+        p="xl"
+        mt="md"
+        style={{
+          borderStyle: "dashed",
+          borderWidth: 2,
+          textAlign: "center",
+          borderColor: over ? "var(--mantine-color-blue-6)" : undefined,
+          backgroundColor: over ? "var(--mantine-color-blue-light)" : undefined,
+        }}
         onDragOver={(e) => { e.preventDefault(); setOver(true); }}
         onDragLeave={() => setOver(false)}
         onDrop={(e) => { e.preventDefault(); setOver(false); addFiles(e.dataTransfer.files); }}
       >
-        <p>Drag &amp; drop pages here, or</p>
+        <Text mb="sm">Drag &amp; drop pages here, or</Text>
         <input type="file" multiple accept=".png,.jpg,.jpeg,.pdf"
                onChange={(e) => addFiles(e.target.files)} />
-      </div>
+      </Paper>
 
-      <ol>
-        {files.map((f, i) => (
-          <li key={`${f.name}-${i}`} className="row">
-            <span>{f.name}</span>
-            <button disabled={i === 0}
-                    onClick={() => setFiles(reorder(files, i, i - 1))}>↑</button>
-            <button disabled={i === files.length - 1}
-                    onClick={() => setFiles(reorder(files, i, i + 1))}>↓</button>
-            <button onClick={() => setFiles(files.filter((_, j) => j !== i))}>✕</button>
-          </li>
-        ))}
-      </ol>
-
-      <button onClick={() => setShowMeta((v) => !v)}>
-        {showMeta ? "Hide" : "Add"} score details (optional)
-      </button>
-      {showMeta && (
-        <div className="card">
-          <label>Title <input onChange={setField("title")} /></label>
-          <label>Key (fifths −7..7) <input type="number" onChange={setField("key_fifths")} /></label>
-          <label>Beats <input type="number" onChange={setField("time_beats")} /></label>
-          <label>Beat type <input type="number" onChange={setField("time_beat_type")} /></label>
-          <label>Tempo (bpm) <input type="number" onChange={setField("tempo_bpm")} /></label>
-        </div>
+      {files.length > 0 && (
+        <Stack component="ol" gap="xs" mt="md"
+               style={{ listStyle: "none", paddingLeft: 0 }}>
+          {files.map((f, i) => (
+            <Group component="li" key={`${f.name}-${i}`} gap="xs" wrap="nowrap">
+              <Text size="sm" style={{ flex: 1, minWidth: 0 }} truncate>{f.name}</Text>
+              <ActionIcon variant="default" aria-label={`Move ${f.name} earlier`}
+                          disabled={i === 0}
+                          onClick={() => setFiles(reorder(files, i, i - 1))}>↑</ActionIcon>
+              <ActionIcon variant="default" aria-label={`Move ${f.name} later`}
+                          disabled={i === files.length - 1}
+                          onClick={() => setFiles(reorder(files, i, i + 1))}>↓</ActionIcon>
+              <ActionIcon variant="default" color="red" aria-label={`Remove ${f.name}`}
+                          onClick={() => setFiles(files.filter((_, j) => j !== i))}>✕</ActionIcon>
+            </Group>
+          ))}
+        </Stack>
       )}
 
-      <label className="row">
-        <input type="checkbox" checked={selfCheck}
-               onChange={(e) => setSelfCheck(e.target.checked)} />
-        Self-check (slower; re-verifies each system against the source)
-      </label>
+      <Stack gap="sm" mt="md" align="flex-start">
+        <Button variant="subtle" size="compact-sm" onClick={() => setShowMeta((v) => !v)}>
+          {showMeta ? "Hide" : "Add"} score details (optional)
+        </Button>
 
-      <div>
-        <button disabled={files.length === 0}
+        {showMeta && (
+          <Paper withBorder radius="md" p="md" w="100%">
+            <Stack gap="sm">
+              <TextInput label="Title" onChange={setField("title")} />
+              <TextInput label="Key (fifths −7..7)" type="number"
+                         onChange={setField("key_fifths")} />
+              <TextInput label="Beats" type="number"
+                         onChange={setField("time_beats")} />
+              <TextInput label="Beat type" type="number"
+                         onChange={setField("time_beat_type")} />
+              <TextInput label="Tempo (bpm)" type="number"
+                         onChange={setField("tempo_bpm")} />
+            </Stack>
+          </Paper>
+        )}
+
+        <Checkbox
+          checked={selfCheck}
+          onChange={(e) => setSelfCheck(e.currentTarget.checked)}
+          label="Self-check (slower; re-verifies each system against the source)"
+        />
+
+        <Button disabled={files.length === 0}
                 onClick={() => onConvert({ files, selfCheck, meta: numericMeta() })}>
           Convert {files.length ? `(${files.length})` : ""}
-        </button>
-      </div>
-    </div>
+        </Button>
+      </Stack>
+    </Container>
   );
 }

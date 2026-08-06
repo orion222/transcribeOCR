@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "../testUtils.jsx";
 import PhotoCard from "./PhotoCard.jsx";
 
 vi.mock("html-midi-player", () => ({}));

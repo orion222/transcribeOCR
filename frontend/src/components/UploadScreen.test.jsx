@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent } from "../testUtils.jsx";
 import UploadScreen from "./UploadScreen.jsx";
 
 function pngFile(name = "a.png") {
