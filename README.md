@@ -231,16 +231,17 @@ score-transcribe serve --jobs-root data/jobs
 
 Then open http://127.0.0.1:8000 — FastAPI serves the built SPA at `/` and
 the API under `/api/...` from the same process. `serve` also accepts
-`--host` and `--port` (defaults `127.0.0.1:8000`).
+`--host` and `--port` (defaults `127.0.0.1:8000`), and `--reload` for
+development (see below).
 
 ### Development workflow
 
-Run the API and the Vite dev server side by side, so frontend edits hot
-reload without a rebuild:
+Run the API and the Vite dev server side by side, so that backend and
+frontend edits both take effect without a manual restart or rebuild:
 
 ```
 # terminal 1
-score-transcribe serve --jobs-root data/jobs
+score-transcribe serve --jobs-root data/jobs --reload
 
 # terminal 2
 npm --prefix frontend run dev
@@ -249,6 +250,21 @@ npm --prefix frontend run dev
 Open the Vite dev server URL (typically http://127.0.0.1:5173); its dev
 server proxies `/api` requests to `127.0.0.1:8000` (see
 `frontend/vite.config.js`), so the UI talks to the real backend.
+
+`--reload` restarts the API whenever a file under `src/scoreocr/` changes.
+Without it the server keeps serving the pipeline code it imported at startup,
+so editing a stage has no effect until you stop and restart — an easy way to
+spend a while re-diagnosing a bug you already fixed. Two things to know:
+
+- It watches `src/scoreocr/` only, not the working directory, so the files a
+  running job writes under `data/jobs/` never trigger a restart.
+- A restart kills in-flight transcriptions. Batches run in daemon threads, so
+  one that was mid-flight is left at `status: "processing"` in its manifest and
+  never resumes; discard that job directory and start over.
+
+API keys are unaffected either way. `.env` is read when a transcription starts
+rather than at server startup, so a new key applies to the next job without a
+restart — it is only *code* that needs one.
 
 The static-SPA serving behavior — mounting `frontend/dist` at `/`, with a
 non-`/api` catch-all falling back to `index.html` — is covered by

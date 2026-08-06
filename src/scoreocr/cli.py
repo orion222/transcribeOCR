@@ -138,6 +138,27 @@ def _run(args) -> int:
 def _serve(args) -> int:
     import uvicorn
 
+    if args.reload:
+        # A reloading server re-imports the app in a child process, so uvicorn
+        # needs an import string and the config has to travel as environment.
+        # --provider/--model are exported rather than passed so that
+        # build_interpreter's own lookup finds them; load_dotenv never overrides
+        # a real env var, so the flags still beat .env as they do without
+        # --reload.
+        os.environ["SCOREOCR_JOBS_ROOT"] = str(args.jobs_root)
+        if args.provider:
+            os.environ["SCOREOCR_PROVIDER"] = args.provider
+        if args.model:
+            os.environ["SCOREOCR_MODEL"] = args.model
+        uvicorn.run(
+            "scoreocr.web.app:app_from_env", factory=True,
+            host=args.host, port=args.port, reload=True,
+            # Watch the package, not uvicorn's default of the whole cwd — which
+            # here contains data/jobs, i.e. every file a running job writes.
+            reload_dirs=[str(Path(__file__).resolve().parent)],
+        )
+        return 0
+
     from scoreocr.web.app import create_app
 
     app = create_app(
@@ -163,6 +184,10 @@ def main(argv=None) -> int:
     serve.add_argument("--jobs-root", type=Path, default=Path("data/jobs"))
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument(
+        "--reload", action="store_true",
+        help="restart when the Python source changes (development)",
+    )
     _add_provider_args(serve)
 
     args = parser.parse_args(argv)
