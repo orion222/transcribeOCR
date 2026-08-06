@@ -59,7 +59,15 @@ export default function StageNode({ id, data }) {
       role="button"
       tabIndex={0}
       aria-label={`Step ${stepNumber}: ${label}`}
-      onClick={handleSelect}
+      onClick={(e) => {
+        // Focus explicitly rather than relying on the browser: Safari does
+        // not focus a div on mousedown even with tabIndex, so without this a
+        // click would select the stage but leave focus on <body>, and the
+        // next Tab would jump back to the top of the page instead of moving
+        // along the diagram.
+        e.currentTarget.focus();
+        handleSelect();
+      }}
       onKeyDown={(e) => {
         // React Flow's own tab stop is disabled (nodesFocusable={false} in
         // PipelineGraph), so this is the only path from keyboard to
@@ -87,6 +95,14 @@ export default function StageNode({ id, data }) {
         justifyContent: "center",
         textAlign: "center",
         cursor: "pointer",
+        // React Flow puts `pointer-events: none` on the node wrapper unless
+        // the canvas is selectable or draggable or an onNodeClick is supplied
+        // (NodeWrapper: `hasPointerEvents = isSelectable || isDraggable ||
+        // onClick || ...`). This diagram is none of those, so the wrapper is
+        // inert and the click never reaches us -- opt this element back in.
+        // Only this element, not the wrapper: re-enabling via onNodeClick
+        // instead would fire selection twice per click, once from each path.
+        pointerEvents: "auto",
         position: "relative",
         borderColor: stateStyle.borderColor,
         backgroundColor: stateStyle.backgroundColor,
