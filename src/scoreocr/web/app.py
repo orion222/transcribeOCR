@@ -25,6 +25,19 @@ def _default_build_interpreter():
     return build_interpreter()
 
 
+def app_from_env() -> FastAPI:
+    """Build the app from the environment alone, for `serve --reload`.
+
+    Reloading re-imports the app in a fresh child process on every edit, so
+    uvicorn needs an import string rather than the instance the CLI builds —
+    which means the CLI's arguments have to reach the child as environment
+    instead. `SCOREOCR_JOBS_ROOT` carries the jobs root; provider and model need
+    nothing here, since the default `build_interpreter` already reads
+    `SCOREOCR_PROVIDER` / `SCOREOCR_MODEL`.
+    """
+    return create_app(Path(os.environ.get("SCOREOCR_JOBS_ROOT", "data/jobs")))
+
+
 def create_app(jobs_root: Path, build_interpreter=_default_build_interpreter) -> FastAPI:
     app = FastAPI(title="scoreocr")
     store = BatchStore(Path(jobs_root))

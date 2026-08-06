@@ -3,7 +3,7 @@ import time
 
 from fastapi.testclient import TestClient
 
-from scoreocr.web.app import create_app
+from scoreocr.web.app import app_from_env, create_app
 from tests.test_cli import StubInterpreter
 
 
@@ -146,3 +146,12 @@ def test_root_serves_spa_when_built(tmp_path, monkeypatch):
     client = TestClient(app)
     r = client.get("/")
     assert r.status_code == 200 and "spa" in r.text
+
+
+def test_app_from_env_reads_jobs_root(tmp_path, monkeypatch):
+    """`serve --reload` re-imports the app, so env has to carry the jobs root."""
+    monkeypatch.setenv("SCOREOCR_JOBS_ROOT", str(tmp_path / "elsewhere"))
+    client = TestClient(app_from_env())
+    bid = client.post("/api/batches",
+                      json={"self_check": False, "meta": {}}).json()["batch_id"]
+    assert (tmp_path / "elsewhere" / bid).is_dir()

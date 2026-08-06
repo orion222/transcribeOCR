@@ -35,9 +35,13 @@ images/PDF
    300 DPI (pypdfium2); image files are converted with Pillow. All pages of a
    single run form one job / one song.
 
-2. **geometry** — Pure OpenCV, no ML. Horizontal dark-pixel projections find
-   staff lines, which are grouped in fives and paired into grand-staff
-   *systems*; vertical projections find barlines, which delimit *measures*.
+2. **geometry** — Pure OpenCV, no ML. Staff lines are horizontal runs spanning
+   ≥40% of the page width, grouped in fives and paired into grand-staff
+   *systems*; barlines are vertical runs spanning ≥75% of a system's height, and
+   delimit *measures*. Both tests look for one *continuous* run rather than for
+   total ink in a row or column, so that collinear marks — a row of tuplet
+   brackets between the staves, a treble stem above a bass stem — cannot add up
+   into a phantom line.
    Measures are numbered absolutely and continuously across systems and pages.
    Writes `pages/<page>/geometry.json`. If the geometry is implausible
    (staff lines don't group into fives, no barlines found) it raises rather
@@ -227,16 +231,17 @@ score-transcribe serve --jobs-root data/jobs
 
 Then open http://127.0.0.1:8000 — FastAPI serves the built SPA at `/` and
 the API under `/api/...` from the same process. `serve` also accepts
-`--host` and `--port` (defaults `127.0.0.1:8000`).
+`--host` and `--port` (defaults `127.0.0.1:8000`), and `--reload` for
+development (see below).
 
 ### Development workflow
 
-Run the API and the Vite dev server side by side, so frontend edits hot
-reload without a rebuild:
+Run the API and the Vite dev server side by side, so that backend and
+frontend edits both take effect without a manual restart or rebuild:
 
 ```
 # terminal 1
-score-transcribe serve --jobs-root data/jobs
+score-transcribe serve --jobs-root data/jobs --reload
 
 # terminal 2
 npm --prefix frontend run dev
@@ -245,6 +250,21 @@ npm --prefix frontend run dev
 Open the Vite dev server URL (typically http://127.0.0.1:5173); its dev
 server proxies `/api` requests to `127.0.0.1:8000` (see
 `frontend/vite.config.js`), so the UI talks to the real backend.
+
+`--reload` restarts the API whenever a file under `src/scoreocr/` changes.
+Without it the server keeps serving the pipeline code it imported at startup,
+so editing a stage has no effect until you stop and restart — an easy way to
+spend a while re-diagnosing a bug you already fixed. Two things to know:
+
+- It watches `src/scoreocr/` only, not the working directory, so the files a
+  running job writes under `data/jobs/` never trigger a restart.
+- A restart kills in-flight transcriptions. Batches run in daemon threads, so
+  one that was mid-flight is left at `status: "processing"` in its manifest and
+  never resumes; discard that job directory and start over.
+
+API keys are unaffected either way. `.env` is read when a transcription starts
+rather than at server startup, so a new key applies to the next job without a
+restart — it is only *code* that needs one.
 
 The static-SPA serving behavior — mounting `frontend/dist` at `/`, with a
 non-`/api` catch-all falling back to `index.html` — is covered by

@@ -1,4 +1,6 @@
 import json
+import os
+from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -165,6 +167,44 @@ def test_unknown_provider_is_rejected(clean_env, monkeypatch):
     monkeypatch.setenv("SCOREOCR_PROVIDER", "hotdog")
     with pytest.raises(RuntimeError, match="unknown provider 'hotdog'"):
         cli.build_interpreter()
+
+
+def test_serve_reload_passes_an_import_string_and_exports_config(tmp_path, monkeypatch):
+    """Reload spawns a child that re-imports the app, so it cannot take an
+    instance, and the CLI's arguments have to reach it as environment."""
+    import uvicorn
+
+    seen = {}
+    monkeypatch.setattr(uvicorn, "run",
+                        lambda app, **kw: seen.update(app=app, **kw))
+    monkeypatch.delenv("SCOREOCR_MODEL", raising=False)
+
+    cli.main([
+        "serve", "--reload", "--jobs-root", str(tmp_path / "jobs"),
+        "--model", "google/gemini-3-pro-preview",
+    ])
+
+    assert seen["app"] == "scoreocr.web.app:app_from_env"
+    assert seen["factory"] is True and seen["reload"] is True
+    # Watching the cwd would rebuild on every file a running job writes.
+    assert seen["reload_dirs"] == [str(Path(cli.__file__).resolve().parent)]
+    assert os.environ["SCOREOCR_JOBS_ROOT"] == str(tmp_path / "jobs")
+    assert os.environ["SCOREOCR_MODEL"] == "google/gemini-3-pro-preview"
+
+
+def test_serve_without_reload_passes_the_app_instance(tmp_path, monkeypatch):
+    import uvicorn
+    from fastapi import FastAPI
+
+    seen = {}
+    monkeypatch.setattr(uvicorn, "run",
+                        lambda app, **kw: seen.update(app=app, **kw))
+    monkeypatch.setattr(cli, "build_interpreter", lambda *a: StubInterpreter())
+
+    cli.main(["serve", "--jobs-root", str(tmp_path / "jobs")])
+
+    assert isinstance(seen["app"], FastAPI)
+    assert "reload" not in seen
 
 
 def test_provider_flags_are_parsed_and_forwarded(tmp_path, synthetic_page, monkeypatch):
