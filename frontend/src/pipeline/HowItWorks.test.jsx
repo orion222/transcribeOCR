@@ -34,6 +34,28 @@ describe("HowItWorks", () => {
     expect(onSelect).toHaveBeenCalledWith("interpret");
   });
 
+  it("nodes opt back into pointer events, so a real mouse click can reach them", () => {
+    // Regression test for a bug that shipped: React Flow sets
+    // `pointer-events: none` on the node wrapper unless the canvas is
+    // selectable/draggable or an onNodeClick is supplied, and this diagram is
+    // none of those -- so real clicks hit an inert wrapper and the diagram
+    // became mouse-dead in the browser while every test still passed.
+    //
+    // The tests above cannot catch that: fireEvent dispatches straight at the
+    // element and ignores pointer-events entirely. Assert the declared style
+    // instead, which is the part jsdom can actually see.
+    render(<HowItWorks />);
+    const node = screen.getByText("4. Interpret").closest('[role="button"]');
+    expect(node).toHaveStyle({ pointerEvents: "auto" });
+  });
+
+  it("clicking a node also focuses it, so Tab continues from there", () => {
+    render(<HowItWorks />);
+    const node = screen.getByText("4. Interpret").closest('[role="button"]');
+    fireEvent.click(node);
+    expect(node).toHaveFocus();
+  });
+
   it("activating a focused node with Enter swaps the detail panel (regression test for F1)", () => {
     // getByRole can't be used here: React Flow's node wrapper carries an
     // inline `visibility: hidden` under jsdom (nodes never acquire measured
