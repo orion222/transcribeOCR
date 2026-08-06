@@ -14,3 +14,88 @@ if (!window.matchMedia) {
     dispatchEvent: () => false,
   });
 }
+
+// jsdom does not implement the layout/measurement APIs React Flow relies on
+// to decide it has something to draw. Without these, React Flow renders
+// nothing under test: no size on the pane means "not ready" (no pane at
+// all), a missing DOMMatrixReadOnly means reading the zoom level throws, and
+// a missing SVGElement.getBBox means edge-label rendering throws. Anyone
+// deleting one of these should expect that specific failure to come back.
+if (!global.ResizeObserver) {
+  global.ResizeObserver = class ResizeObserver {
+    constructor(callback) {
+      this.callback = callback;
+    }
+
+    observe(target) {
+      // React Flow's container observer must fire at least once or the
+      // pane never gets a size and nothing renders. It also has to carry a
+      // `contentRect`: @xyflow/system's XYPanZoom sets up a second,
+      // separate ResizeObserver (`extentResizeObserver`) whose callback
+      // reads `entry.contentRect.width/height` with no guard, so an entry
+      // missing `contentRect` throws on the first real <ReactFlow> render.
+      this.callback([{ target, contentRect: target.getBoundingClientRect() }]);
+    }
+
+    unobserve() {}
+
+    disconnect() {}
+  };
+}
+
+if (!global.DOMMatrixReadOnly) {
+  global.DOMMatrixReadOnly = class DOMMatrixReadOnly {
+    constructor(transform) {
+      const match = /scale\(([^)]+)\)/.exec(transform ?? "");
+      const parsed = match ? parseFloat(match[1]) : NaN;
+      this.m22 = Number.isNaN(parsed) ? 1 : parsed;
+    }
+  };
+}
+
+// Unguarded on purpose: jsdom already defines offsetWidth/offsetHeight as
+// accessor getters, so `if (!HTMLElement.prototype.offsetWidth)` doesn't
+// return falsy and skip redefinition — it throws (`'get offsetWidth' called
+// on an object that is not a valid instance of HTMLElement`), crashing
+// setup. Redefining unconditionally is required; `configurable: true` still
+// lets a future real implementation replace this one.
+Object.defineProperties(HTMLElement.prototype, {
+  offsetWidth: {
+    configurable: true,
+    get() {
+      const width = parseFloat(this.style.width);
+      return Number.isNaN(width) ? 1000 : width;
+    },
+  },
+  offsetHeight: {
+    configurable: true,
+    get() {
+      const height = parseFloat(this.style.height);
+      return Number.isNaN(height) ? 400 : height;
+    },
+  },
+});
+
+// Unguarded on purpose: jsdom already implements getBoundingClientRect as a
+// real function returning an all-zero rect, so `if (!X)` checks a truthy
+// function, never fires, and the stub sits inert — the zero-size box React
+// Flow treats as "not ready" would slip through unchanged.
+HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect() {
+  return {
+    width: 1000,
+    height: 400,
+    x: 0,
+    y: 0,
+    top: 0,
+    left: 0,
+    right: 1000,
+    bottom: 400,
+    toJSON() {
+      return this;
+    },
+  };
+};
+
+if (!SVGElement.prototype.getBBox) {
+  SVGElement.prototype.getBBox = () => ({ x: 0, y: 0, width: 0, height: 0 });
+}

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import {
-  ActionIcon, Button, Checkbox, Container, Group, Paper, Stack, Text, TextInput, Title,
+  ActionIcon, Anchor, Button, Checkbox, Container, Group, Paper, Stack, Text, TextInput, Title,
 } from "@mantine/core";
 import { acceptFile, reorder } from "../upload.js";
+import HowItWorks from "../pipeline/HowItWorks.jsx";
 
 export default function UploadScreen({ onConvert }) {
   const [files, setFiles] = useState([]);
@@ -36,14 +37,18 @@ export default function UploadScreen({ onConvert }) {
       <Title order={1} size="h2" mb="md">Sheet Music → MusicXML</Title>
 
       <details open>
-        <summary>How it works</summary>
+        <summary>How to use</summary>
         <Text size="sm" c="dimmed" mt="xs">
-          Upload clear photos of each page in reading order (PNG, JPG, or PDF).
-          Each page is transcribed to MusicXML one at a time; finished pages appear
-          below as they complete, and you can merge them into a single score at the
-          end. Transcription calls Claude per measure, so a page can take a few
-          minutes.
+          Upload PNG, JPG, or PDF pages in reading order. You get MusicXML one
+          page at a time; finished pages appear below as they complete and can
+          be merged into one score at the end. A page takes a few minutes.
         </Text>
+        {/* display="block": Anchor renders a bare <a>, which is inline, and
+            margin-top has no effect on inline non-replaced elements -- the
+            mt="xs" below was silently a no-op without this. */}
+        <Anchor size="sm" href="#how-it-works" mt="xs" display="block">
+          See each stage of the pipeline ↓
+        </Anchor>
       </details>
 
       {/* Native input + hand-written drag handlers are kept deliberately:
@@ -120,6 +125,8 @@ export default function UploadScreen({ onConvert }) {
           Convert {files.length ? `(${files.length})` : ""}
         </Button>
       </Stack>
+
+      <HowItWorks selfCheck={selfCheck} />
     </Container>
   );
 }
